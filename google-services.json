@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1067395211015",
+    "project_id": "shiftflow-femet",
+    "storage_bucket": "shiftflow-femet.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067395211015:android:4111ba4d062b7e73e0efa2",
+        "android_client_info": {
+          "package_name": "com.yourcompany.shiftflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYQzCrN1U1TLozBXVvW_x4hRLinJHTR1I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

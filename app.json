@@ -7,9 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "shiftfillamobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.matthew.ardern93.shiftfillamobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +20,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.matthew.ardern93.shiftfillamobile"
     },
     "web": {
       "output": "static",
@@ -41,8 +43,13 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2f2292be-ecd2-429a-82b5-759041e470c9"
+      }
     }
   }
 }
