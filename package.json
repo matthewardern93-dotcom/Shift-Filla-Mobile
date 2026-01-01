@@ -29,6 +29,7 @@
     "expo": "^54.0.30",
     "expo-clipboard": "^8.0.8",
     "expo-constants": "~15.4.6",
+    "expo-dev-client": "~2.4.12",
     "expo-document-picker": "^14.0.8",
     "expo-font": "~14.0.10",
     "expo-haptics": "~15.0.8",
