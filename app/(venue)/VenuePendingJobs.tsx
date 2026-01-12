@@ -1,97 +1,46 @@
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { JobData } from '../../types';
-import JobCard from '../../components/JobCard';
-import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { Stack } from 'expo-router';
+import { usePermanentJobs } from '../../hooks/useJobs';
 import { Colors } from '../../constants/colors';
-
-const mockJobs: JobData[] = [
-    {
-        id: 'mockJob1',
-        venueId: 'venue1',
-        venueName: 'The Grand Eatery',
-        title: 'Head Chef',
-        location: '123 Culinary Ave, Foodie City',
-        type: 'Full-Time',
-        description: 'Seeking an experienced Head Chef to lead our kitchen team. Must have a passion for innovative cuisine and team management.',
-        skills: ['kitchen_management', 'menu_planning', 'fine_dining'],
-        payRate: 80000,
-        payType: 'salary',
-        status: 'open',
-        applicants: [],
-        createdAt: new Date(),
-    },
-    {
-        id: 'mockJob2',
-        venueId: 'venue1',
-        venueName: 'The Corner Pub',
-        title: 'Expert Mixologist',
-        location: '456 Drink St, Bar Town',
-        type: 'Part-Time',
-        description: 'Creative mixologist wanted for a bustling downtown pub. Experience with craft cocktails is a must.',
-        skills: ['bartending', 'mixology', 'customer_service'],
-        payRate: 30,
-        payType: 'hourly',
-        status: 'open',
-        applicants: [],
-        createdAt: new Date(),
-    },
-];
+import VenueJobCard from '../../components/venue/VenueJobCard';
+import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
+import { useAuth } from '../../hooks/useAuth';
 
 const VenuePendingJobsScreen = () => {
-  const [jobs, setJobs] = useState<JobData[]>(mockJobs);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /* useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const allJobs = await getJobsByVenue(user.uid);
-          const openJobs = allJobs.filter(job => job.status === 'open');
-          setJobs(openJobs);
-        } catch (err) {
-          setError("Failed to fetch pending jobs.");
-          console.error(err);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []); */
+  const { user } = useAuth();
+  const { jobs, loading, error } = usePermanentJobs({ venueId: user?.uid, status: 'active' });
 
   const renderContent = () => {
-    if (isLoading) {
-      return <ActivityIndicator size="large" color={Colors.primary} style={styles.centered} />;
+    if (loading) {
+      return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />;
     }
 
     if (error) {
-      return <Text style={styles.errorText}>{error}</Text>;
+      // Safely display the error, whether it's an object or a string.
+      const errorMessage = typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : String(error);
+      return <Text style={styles.infoText}>Error loading jobs: {errorMessage}</Text>;
     }
 
     if (jobs.length === 0) {
-      return <Text style={styles.emptyText}>No pending jobs available at the moment.</Text>;
+      return <Text style={styles.infoText}>You have no active job postings.</Text>;
     }
 
     return (
       <FlatList
         data={jobs}
-        renderItem={({ item }) => <JobCard job={item} />}
-        keyExtractor={(item) => item.id!}
-        contentContainerStyle={styles.listContainer}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <VenueJobCard job={item} />}
+        contentContainerStyle={styles.listContent}
       />
     );
   };
 
   return (
     <VenueScreenTemplate>
+      <Stack.Screen options={{ title: 'Active Jobs' }} />
       <View style={styles.container}>
-        <Text style={styles.title}>Pending Jobs</Text>
+        <Text style={styles.header}>Your Active Job Postings</Text>
         {renderContent()}
       </View>
     </VenueScreenTemplate>
@@ -102,32 +51,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: Colors.background,
   },
-  title: {
-    fontSize: 24,
+  header: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: Colors.text,
     marginBottom: 16,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  listContent: {
+    paddingBottom: 16,
   },
-  errorText: {
+  infoText: {
     textAlign: 'center',
-    color: Colors.error,
-    marginTop: 20,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.textSecondary,
-    marginTop: 20,
+    marginTop: 40,
     fontSize: 16,
-  },
-  listContainer: {
-    paddingBottom: 20,
+    color: Colors.textSecondary,
   },
 });
 

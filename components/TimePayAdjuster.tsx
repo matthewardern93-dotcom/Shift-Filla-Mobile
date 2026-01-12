@@ -22,12 +22,42 @@ const roundToNearest15 = (date: Date): Date => {
     return d;
   };
 
+  const TimeAdjuster = ({ label, time, setter }: { label: string, time: Date, setter: (d: Date) => void }) => (
+    <View style={styles.timeAdjusterRow}>
+      <Text style={styles.timeLabel}>{label}</Text>
+      <View style={styles.controls}>
+        <TouchableOpacity onPress={() => setter(subMinutes(time, 15))} style={styles.button}>
+          <MinusCircle size={32} color={Colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.timeText}>{format(time, 'h:mm a')}</Text>
+        <TouchableOpacity onPress={() => setter(addMinutes(time, 15))} style={styles.button}>
+          <PlusCircle size={32} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+  
+  const BreakAdjuster = ({ breakDuration, setBreakDuration }: { breakDuration: number, setBreakDuration: (d: number) => void }) => (
+    <View style={styles.timeAdjusterRow}>
+      <Text style={styles.timeLabel}>Break</Text>
+      <View style={styles.controls}>
+        <TouchableOpacity onPress={() => setBreakDuration(Math.max(0, breakDuration - 15))} style={styles.button}>
+          <MinusCircle size={32} color={Colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.timeText}>{breakDuration} mins</Text>
+        <TouchableOpacity onPress={() => setBreakDuration(breakDuration + 15)} style={styles.button}>
+          <PlusCircle size={32} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
 interface TimePayAdjusterProps {
   initialStartTime: Date;
   initialFinishTime: Date;
   initialBreakDuration: number; // in minutes
   hourlyRate: number;
-  onAdjust: (adjustment: { startTime: Date; finishTime: Date; breakDuration: number; totalHours: number }) => void;
+  setAdjustedTotalHours: (totalHours: number) => void;
 }
 
 const TimePayAdjuster: React.FC<TimePayAdjusterProps> = ({ 
@@ -35,60 +65,20 @@ const TimePayAdjuster: React.FC<TimePayAdjusterProps> = ({
   initialFinishTime, 
   initialBreakDuration,
   hourlyRate, 
-  onAdjust 
+  setAdjustedTotalHours
 }) => {
   const [startTime, setStartTime] = useState(roundToNearest15(initialStartTime));
   const [finishTime, setFinishTime] = useState(roundToNearest15(initialFinishTime));
   const [breakDuration, setBreakDuration] = useState(initialBreakDuration);
 
-  useEffect(() => {
-    const durationInMinutes = differenceInMinutes(finishTime, startTime);
-    const totalHours = Math.max(0, (durationInMinutes - breakDuration) / 60);
-    onAdjust({ startTime, finishTime, breakDuration, totalHours });
-  }, [startTime, finishTime, breakDuration, onAdjust]);
-
-  const handleTimeAdjust = (time: Date, setter: (d: Date) => void, increment: number) => {
-    const newTime = increment > 0 ? addMinutes(time, increment) : subMinutes(time, Math.abs(increment));
-    setter(newTime);
-  };
-
-  const handleBreakAdjust = (increment: number) => {
-    setBreakDuration(prev => Math.max(0, prev + increment));
-  };
-
   const durationInMinutes = differenceInMinutes(finishTime, startTime);
   const totalHours = Math.max(0, (durationInMinutes - breakDuration) / 60);
+
+  useEffect(() => {
+    setAdjustedTotalHours(totalHours);
+  }, [totalHours, setAdjustedTotalHours]);
+
   const calculatedPay = totalHours * hourlyRate;
-
-  const TimeAdjuster = ({ label, time, setter }: { label: string, time: Date, setter: (d: Date) => void }) => (
-    <View style={styles.timeAdjusterRow}>
-      <Text style={styles.timeLabel}>{label}</Text>
-      <View style={styles.controls}>
-        <TouchableOpacity onPress={() => handleTimeAdjust(time, setter, -15)} style={styles.button}>
-          <MinusCircle size={32} color={Colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.timeText}>{format(time, 'h:mm a')}</Text>
-        <TouchableOpacity onPress={() => handleTimeAdjust(time, setter, 15)} style={styles.button}>
-          <PlusCircle size={32} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const BreakAdjuster = () => (
-    <View style={styles.timeAdjusterRow}>
-      <Text style={styles.timeLabel}>Break</Text>
-      <View style={styles.controls}>
-        <TouchableOpacity onPress={() => handleBreakAdjust(-15)} style={styles.button}>
-          <MinusCircle size={32} color={Colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.timeText}>{breakDuration} mins</Text>
-        <TouchableOpacity onPress={() => handleBreakAdjust(15)} style={styles.button}>
-          <PlusCircle size={32} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
@@ -100,7 +90,7 @@ const TimePayAdjuster: React.FC<TimePayAdjusterProps> = ({
       <View style={styles.adjusterContainer}>
         <TimeAdjuster label="Start Time" time={startTime} setter={setStartTime} />
         <TimeAdjuster label="Finish Time" time={finishTime} setter={setFinishTime} />
-        <BreakAdjuster />
+        <BreakAdjuster breakDuration={breakDuration} setBreakDuration={setBreakDuration} />
       </View>
 
       <View style={styles.summaryContainer}>

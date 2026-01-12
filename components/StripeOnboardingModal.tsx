@@ -1,60 +1,112 @@
-import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from 'react-native';
-import { Colors } from '../constants/colors';
-import { X } from 'lucide-react-native';
 
-interface StripeOnboardingModalProps {
-  isVisible: boolean;
+'use client';
+
+import { useState } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Loader2, Link2, X } from 'lucide-react-native';
+import { Colors } from '../constants/colors';
+
+interface StripeConnectModalProps {
+  isOpen: boolean;
   onClose: () => void;
-  userType: 'venue' | 'worker';
+  userEmail: string | null;
+  userId: string;
+  userType: 'worker' | 'venue';
 }
 
-const StripeOnboardingModal = ({ isVisible, onClose, userType }: StripeOnboardingModalProps) => {
-  const title = "Connect your Stripe Account";
-  const message = userType === 'venue'
-    ? "To post shifts and pay workers, you need to connect a Stripe account. This allows us to securely handle all payments."
-    : "To get paid for your shifts, you need to connect a Stripe account. Your earnings will be deposited directly into your bank account via Stripe.";
+export function StripeConnectModal({ isOpen, onClose, userEmail, userId, userType }: StripeConnectModalProps) {
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleConnectStripe = () => {
-    // This is a placeholder for the full Stripe Connect onboarding flow.
-    // In a real implementation, you would generate a unique link on your server
-    // for each user to ensure security and proper account linking.
-    const placeholderStripeLink = 'https://stripe.com/connect/oauth/authorize?response_type=code&client_id=ca_1234&scope=read_write';
-    
-    console.log("Redirecting to placeholder Stripe Connect link...");
-    Linking.openURL(placeholderStripeLink).catch(err => console.error("Couldn't load page", err));
+  const handleStripeConnect = async () => {
+    if (!userEmail || !userId) {
+      console.error('User information is missing. Cannot connect to Stripe.');
+      return;
+    }
+    setIsLoading(true);
 
-    onClose();
+    try {
+      // 1. Create a Stripe Connect account for the user if it doesn't exist.
+      const connectResponse = await fetch('/api/stripe/connect-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          email: userEmail,
+          businessType: userType === 'worker' ? 'individual' : 'company',
+        }),
+      });
+
+      if (!connectResponse.ok) {
+        const errorData = await connectResponse.json();
+        throw new Error(errorData.error || 'Failed to create Stripe account.');
+      }
+      
+      // 2. Create a one-time account link for onboarding.
+      const accountLinkResponse = await fetch('/api/stripe/account-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId }),
+      });
+      
+      if (!accountLinkResponse.ok) {
+        const errorData = await accountLinkResponse.json();
+        throw new Error(errorData.error || 'Failed to create Stripe onboarding link.');
+      }
+
+      const { url } = await accountLinkResponse.json();
+      // 3. Redirect the user to Stripe.
+      // In React Native, we would use Linking to open the URL
+      // Linking.openURL(url);
+      console.log('Redirecting to Stripe...', url);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not connect to Stripe. Please try again.';
+      console.error(errorMessage);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
     <Modal
       animationType="slide"
       transparent={true}
-      visible={isVisible}
-      onRequestClose={onClose}
+      visible={isOpen}
+      onDismiss={onClose}
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <X size={24} color={Colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <Text style={styles.modalText}>{message}</Text>
+          <Text style={styles.modalTitle}>Kia Ora, Welcome to Shift Filla</Text>
+          <Text style={styles.modalText}>
+            {userType === 'worker'
+              ? 'To receive payments for completed shifts, you must connect a Stripe account. This is a secure one-time setup.'
+              : 'To post shifts and pay workers, you must connect a Stripe account. This ensures secure and reliable payments.'}
+          </Text>
+          <Text style={styles.infoText}>
+            We are a new platform founded in Queenstown so please keep this in mind as we build up our presence in New Zealand.
+          </Text>
           <TouchableOpacity
             style={styles.connectButton}
-            onPress={handleConnectStripe}
+            onPress={handleStripeConnect}
+            disabled={isLoading}
           >
-            <Text style={styles.connectButtonText}>Connect to Stripe</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Link2 size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.connectButtonText}>Connect with Stripe</Text>
+              </>
+            )}
           </TouchableOpacity>
-           <Text style={styles.infoText}>
-            You will be redirected to Stripe to create or connect your account. This is a required step to use the platform.
-          </Text>
         </View>
       </View>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
   centeredView: {
@@ -105,6 +157,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 30,
     elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   connectButtonText: {
     color: 'white',
@@ -117,7 +172,8 @@ const styles = StyleSheet.create({
       color: Colors.gray,
       textAlign: 'center',
       marginTop: 15,
+      marginBottom: 15,
   }
 });
 
-export default StripeOnboardingModal;
+export default StripeConnectModal;

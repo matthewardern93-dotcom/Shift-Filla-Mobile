@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { firestore } from '../services/firebase';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { db } from '../services/firebase';
 import { useUserStore } from '../app/store/userStore'; 
 import { WorkerProfile } from '../types';
 
@@ -18,19 +17,18 @@ export const useWorkerProfile = () => {
       return;
     }
 
-    setIsLoading(true);
-    const docRef = doc(firestore, 'WorkerProfiles', workerId);
+    const docRef = db.collection('workerProfiles').doc(workerId);
 
-    const unsubscribe = onSnapshot(docRef, 
-      (docSnap) => {
-        if (docSnap.exists()) {
+    const unsubscribe = docRef.onSnapshot(
+      (docSnap: FirebaseFirestoreTypes.DocumentSnapshot) => {
+        if (docSnap.exists) {
           setProfile({ id: docSnap.id, ...docSnap.data() } as WorkerProfile);
         } else {
           setError("Worker profile not found.");
         }
         setIsLoading(false);
       },
-      (e) => {
+      (e: Error) => {
         console.error("Error fetching worker profile:", e);
         setError("Failed to load worker profile.");
         setIsLoading(false);

@@ -2,34 +2,35 @@
 import React, { forwardRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
 import { Colors } from '../constants/colors';
-import { Job } from '../types';
+import { PermanentJob } from '../types';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Check, Briefcase, MapPin, DollarSign } from 'lucide-react-native';
 
 interface CardProps {
-  item: Job;
-  onSwipeApply?: (item: Job) => void;
-  onPress?: (item: Job) => void;
+  item: PermanentJob;
+  onSwipeApply?: (item: PermanentJob) => void;
+  onPress?: (item: PermanentJob) => void;
   isApplied?: boolean;
 }
 
-const PTFTJobCard = forwardRef<Swipeable, CardProps>(({ item, onSwipeApply, onPress, isApplied }, ref) => {
-  const { title, venueName, location, type, salary, payType, isNew } = item;
+interface CardContentProps {
+    item: PermanentJob;
+    onPress?: (item: PermanentJob) => void;
+    isApplied?: boolean;
+}
 
-  const renderRightActions = (progress, dragX) => {
-    const scale = dragX.interpolate({ inputRange: [-80, 0], outputRange: [1, 0], extrapolate: 'clamp' });
-    return (
-        <TouchableOpacity onPress={() => onSwipeApply(item)} style={styles.applyBox}>
-            <Animated.View style={[{ transform: [{ scale }] }]}><Check size={24} color="#fff" /></Animated.View>
-            <Animated.Text style={[styles.applyText, { transform: [{ scale }] }]}>Apply</Animated.Text>
-        </TouchableOpacity>
-    );
-  };
+const CardContent: React.FC<CardContentProps> = ({ item, onPress, isApplied }) => {
+  const { title, businessName, location, type, salary } = item;
 
-  const CardContent = () => (
-    <View style={[styles.container, isNew && styles.newPost]}>
-        {isNew && <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>}
-        <TouchableOpacity onPress={() => onPress(item)} activeOpacity={0.8}>
+  const handlePress = () => {
+      if(onPress) {
+          onPress(item)
+      }
+  }
+
+  return (
+    <View style={styles.container}>
+        <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
             <View style={styles.cardContent}>
                 <View style={styles.header}>
                     <Text style={styles.title}>{title}</Text>
@@ -40,7 +41,7 @@ const PTFTJobCard = forwardRef<Swipeable, CardProps>(({ item, onSwipeApply, onPr
                         </View>
                     )}
                 </View>
-                <Text style={styles.venueName}>{venueName}</Text>
+                <Text style={styles.venueName}>{businessName}</Text>
 
                 <View style={styles.detailRow}>
                     <Briefcase size={16} color={Colors.textSecondary} />
@@ -52,12 +53,32 @@ const PTFTJobCard = forwardRef<Swipeable, CardProps>(({ item, onSwipeApply, onPr
                 </View>
                 <View style={styles.detailRow}>
                     <DollarSign size={16} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{`$${salary} / ${payType === 'hourly' ? 'hr' : 'yr'}`}</Text>
+                    <Text style={styles.detailText}>{salary}</Text>
                 </View>
             </View>
         </TouchableOpacity>
     </View>
-  );
+  )
+};
+
+const PTFTJobCard = forwardRef<Swipeable, CardProps>(({ item, onSwipeApply, onPress, isApplied }, ref) => {
+
+  const renderRightActions = (_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const scale = dragX.interpolate({ inputRange: [-80, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+    
+    const handleSwipe = () => {
+        if(onSwipeApply) {
+            onSwipeApply(item)
+        }
+    }
+
+    return (
+        <TouchableOpacity onPress={handleSwipe} style={styles.applyBox}>
+            <Animated.View style={[{ transform: [{ scale }] }]}><Check size={24} color="#fff" /></Animated.View>
+            <Animated.Text style={[styles.applyText, { transform: [{ scale }] }]}>Apply</Animated.Text>
+        </TouchableOpacity>
+    );
+  };
 
   if (onSwipeApply && !isApplied) {
     return (
@@ -67,13 +88,15 @@ const PTFTJobCard = forwardRef<Swipeable, CardProps>(({ item, onSwipeApply, onPr
             friction={2} 
             rightThreshold={80}
         >
-            <CardContent />
+            <CardContent item={item} onPress={onPress} isApplied={isApplied} />
         </Swipeable>
     );
   }
 
-  return <CardContent />;
+  return <CardContent item={item} onPress={onPress} isApplied={isApplied} />;
 });
+
+PTFTJobCard.displayName = 'PTFTJobCard';
 
 const styles = StyleSheet.create({
   container: {
@@ -83,30 +106,12 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     marginHorizontal: 12,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     borderLeftWidth: 5,
     borderColor: 'transparent',
-  },
-  newPost: {
-    borderColor: Colors.primary,
-  },
-  newBadge: {
-      position: 'absolute',
-      top: -10,
-      right: 12,
-      backgroundColor: Colors.primary,
-      borderRadius: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      transform: [{ rotate: '5deg' }],
-  },
-  newBadgeText: {
-      color: '#fff',
-      fontSize: 12,
-      fontWeight: 'bold',
   },
   cardContent: {},
   header: {

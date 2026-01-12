@@ -5,10 +5,10 @@ import { useRouter, usePathname } from 'expo-router';
 import { ChevronDown, Bell, Mail, User, Home, CalendarDays } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import WorkerSettingsModal from '../WorkerSettingsModal';
-import { useChatStore } from '../../store/chatStore';
-import { useUserStore } from '../../store/userStore';
+import { useChatStore } from '../../app/store/chatStore';
+import { useUserStore } from '../../app/store/userStore';
 
-const WorkerScreenTemplate = ({ children }) => {
+const WorkerScreenTemplate = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
   const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
@@ -19,7 +19,9 @@ const WorkerScreenTemplate = ({ children }) => {
   // --- Chat Store Integration ---
   const { user } = useUserStore(); // Get the logged-in user
   const { hasUnreadMessages, subscribeToConversations, clearUnreadState } = useChatStore(); // Get state and actions
-  
+  const flashAnim = useRef(new Animated.Value(1));
+  const [flashOpacity, setFlashOpacity] = useState(1);
+
   // Subscribe to conversations when the component mounts
   useEffect(() => {
     if (user?.uid) {
@@ -29,34 +31,44 @@ const WorkerScreenTemplate = ({ children }) => {
     return () => {
       clearUnreadState();
     };
-  }, [user?.uid]);
+  }, [user?.uid, subscribeToConversations, clearUnreadState]);
 
   // --- Flashing Animation ---
-  const flashAnim = useRef(new Animated.Value(1)).current;
-
   useEffect(() => {
-    if (hasUnreadMessages) {
-      // Create a looping, flashing animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(flashAnim, {
-            toValue: 0.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(flashAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    } else {
-      // Stop the animation and reset opacity if there are no unread messages
-      flashAnim.stopAnimation();
-      flashAnim.setValue(1);
+    const currentFlashAnim = flashAnim.current;
+
+    // Guard clause: If no unread messages, reset opacity and do nothing further.
+    if (!hasUnreadMessages) {
+      currentFlashAnim.setValue(1);
+      setFlashOpacity(1);
+      return;
     }
-  }, [hasUnreadMessages, flashAnim]);
+
+    // This code only runs if `hasUnreadMessages` is true.
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(currentFlashAnim, {
+          toValue: 0.2,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(currentFlashAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    
+    const listenerId = currentFlashAnim.addListener(({ value }) => setFlashOpacity(value));
+
+    // Return a cleanup function to stop the animation and remove the specific listener.
+    return () => {
+      animation.stop();
+      currentFlashAnim.removeListener(listenerId);
+    };
+  }, [hasUnreadMessages]);
 
   return (
     <View style={styles.container}>
@@ -113,7 +125,7 @@ const WorkerScreenTemplate = ({ children }) => {
           </View>
           <View style={styles.navIconContainer}>
               <TouchableOpacity onPress={() => router.push('/(worker)/WorkerMessages')}>
-                <Animated.View style={{ opacity: flashAnim }}>
+                <Animated.View style={{ opacity: flashOpacity }}>
                   <Mail color={Colors.secondary} size={32} />
                 </Animated.View>
               </TouchableOpacity>

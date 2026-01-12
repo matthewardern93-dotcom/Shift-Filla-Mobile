@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { firestore } from '../services/firebase';
+import firestore from '@react-native-firebase/firestore';
 import { useAuth } from './useAuth';
 import { Conversation, WorkerProfile } from '../types';
 
@@ -20,9 +19,9 @@ export const useVenueConversations = () => {
 
     const venueId = user.uid;
 
-    const q = query(collection(firestore, 'conversations'), where('participants', 'array-contains', venueId));
+    const q = firestore().collection('conversations').where('participants', 'array-contains', venueId);
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const unsubscribe = q.onSnapshot(async (querySnapshot) => {
       setIsLoading(true);
       try {
         const convos = await Promise.all(querySnapshot.docs.map(async (docSnap) => {
@@ -32,10 +31,10 @@ export const useVenueConversations = () => {
           let participantProfile: Partial<WorkerProfile> = {};
 
           if (workerId) {
-              const workerRef = doc(firestore, 'WorkerProfiles', workerId);
-              const workerSnap = await getDoc(workerRef);
-              if (workerSnap.exists()) {
-                  const workerData = workerSnap.data();
+              const workerRef = firestore().collection('workerProfiles').doc(workerId);
+              const workerSnap = await workerRef.get();
+              if (workerSnap.exists) {
+                  const workerData = workerSnap.data() as WorkerProfile;
                   participantProfile = {
                       firstName: workerData.firstName,
                       lastName: workerData.lastName,

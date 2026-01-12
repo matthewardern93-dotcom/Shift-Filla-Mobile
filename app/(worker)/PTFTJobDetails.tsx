@@ -6,7 +6,7 @@ import { Job } from '../../types';
 import { Colors } from '../../constants/colors';
 import { Briefcase, MapPin, DollarSign, Type, FileText } from 'lucide-react-native';
 
-const DetailRow = ({ icon, label, value, onPress }) => (
+const DetailRow = ({ icon, label, value, onPress }: { icon: React.ReactNode, label: string, value: string, onPress?: () => void }) => (
     <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.detailRow}>
         <View style={styles.detailLabelContainer}>
             {icon}
@@ -16,7 +16,7 @@ const DetailRow = ({ icon, label, value, onPress }) => (
     </TouchableOpacity>
 );
 
-const Section = ({ title, children, icon }) => (
+const Section = ({ title, children, icon }: { title: string, children: React.ReactNode, icon: React.ReactNode }) => (
     <View style={styles.section}>
         <View style={styles.sectionHeader}>
             {icon}
@@ -32,15 +32,18 @@ const PTFTJobDetails = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  let job: Job | null = null;
-
-  try {
-    if (params.job) {
-      job = JSON.parse(params.job as string);
+  const getJob = (): Job | null => {
+    try {
+      if (params.job) {
+        return JSON.parse(params.job as string);
+      }
+    } catch (e) {
+      console.error("Failed to parse params", e);
     }
-  } catch (e) {
-    console.error("Failed to parse params", e);
+    return null;
   }
+  
+  const job = getJob();
 
   if (!job) {
     Alert.alert("Error", "Job data not found.", [{ text: "OK", onPress: () => router.back() }]);
@@ -63,7 +66,7 @@ const PTFTJobDetails = () => {
   const handleApply = () => {
     Alert.alert(
         "Apply for Job", 
-        "Are you sure you want to apply for this job?",
+        `Are you sure you want to apply for the ${job.title} position at ${job.businessName}?`,
         [
             { text: "Cancel", style: "cancel" },
             { text: "Yes, Apply", onPress: () => {
@@ -81,7 +84,7 @@ const PTFTJobDetails = () => {
 
         <View style={styles.headerInfo}>
             <Text style={styles.roleTitle}>{job.title}</Text>
-            <Text style={styles.venueName}>{job.venueName}</Text>
+            <Text style={styles.venueName}>{job.businessName}</Text>
         </View>
 
         <View style={styles.card}>
@@ -99,7 +102,7 @@ const PTFTJobDetails = () => {
             <DetailRow 
                 icon={<DollarSign size={20} color={Colors.primary}/>} 
                 label="Salary"
-                value={`$${job.salary} ${job.payType === 'hourly' ? '/ hour' : '/ year'}`} 
+                value={job.salary} 
             />
         </View>
         

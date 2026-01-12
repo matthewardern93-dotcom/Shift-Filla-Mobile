@@ -1,9 +1,13 @@
-
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
 
-const StatTile = ({ title, value }) => {
+interface StatTileProps {
+  title: string;
+  value: string | number;
+}
+
+const StatTile = ({ title, value }: StatTileProps): React.ReactElement => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>

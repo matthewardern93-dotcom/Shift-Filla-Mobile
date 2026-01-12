@@ -3,30 +3,42 @@ import React, { useState } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Feather } from '@expo/vector-icons';
-import { format, toDate } from 'date-fns';
-import { Timestamp, functions } from '../../services/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { format } from 'date-fns';
+import firestore from '@react-native-firebase/firestore';
+import functions from '@react-native-firebase/functions';
 import ShiftCostSummary from '../../components/ShiftCostSummary';
+import { Shift } from '../../types';
 
-const DetailRow = ({ label, value }) => (
+interface DetailRowProps {
+    label: string;
+    value: string;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
     <View style={styles.detailRow}>
         <Text style={styles.detailLabel}>{label}:</Text>
         <Text style={styles.detailValue}>{value}</Text>
     </View>
 );
 
-const VenueShiftDetailsModal = ({ isVisible, onClose, shift }) => {
+interface VenueShiftDetailsModalProps {
+    isVisible: boolean;
+    onClose: () => void;
+    shift: Shift | null;
+}
+
+const VenueShiftDetailsModal: React.FC<VenueShiftDetailsModalProps> = ({ isVisible, onClose, shift }) => {
     const [isCancelling, setIsCancelling] = useState(false);
 
     if (!shift) return null;
 
-    const startTime = shift.startTime instanceof Timestamp ? toDate(shift.startTime) : new Date(shift.startTime);
-    const endTime = shift.endTime instanceof Timestamp ? toDate(shift.endTime) : new Date(shift.endTime);
-    const breakMinutes = shift.break || shift.breakDuration || 0;
+    const startTime = shift.startTime instanceof firestore.Timestamp ? shift.startTime.toDate() : new Date(shift.startTime as any);
+    const endTime = shift.endTime instanceof firestore.Timestamp ? shift.endTime.toDate() : new Date(shift.endTime as any);
+    const breakMinutes = shift.breakDuration || 0;
 
     const durationInMinutes = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60));
     const totalHours = Math.max(0, (durationInMinutes - breakMinutes) / 60);
-    const basePay = totalHours * shift.payRate;
+    const basePay = totalHours * shift.pay;
     const serviceFee = basePay * 0.12;
     const totalCost = basePay + serviceFee;
 
@@ -44,14 +56,14 @@ const VenueShiftDetailsModal = ({ isVisible, onClose, shift }) => {
     const handleCancelShift = async () => {
         setIsCancelling(true);
         try {
-            const manageShifts = httpsCallable(functions, 'manageShifts');
+            const manageShifts = functions().httpsCallable('manageShifts');
             await manageShifts({ 
                 action: 'cancel', 
                 shiftId: shift.id 
             });
             Alert.alert("Shift Cancelled", "The shift has been successfully cancelled.");
             onClose(); 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error cancelling shift:", error);
             Alert.alert("Cancellation Failed", error.message || "An unexpected error occurred.");
         } finally {
@@ -89,7 +101,7 @@ const VenueShiftDetailsModal = ({ isVisible, onClose, shift }) => {
                     <ScrollView contentContainerStyle={styles.scrollContainer}>
                          <DetailRow label="Date" value={format(startTime, 'eeee, dd MMMM yyyy')} />
                         <DetailRow label="Time" value={`${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`} />
-                        <DetailRow label="Pay Rate" value={`$${shift.payRate.toFixed(2)} / hour`} />
+                        <DetailRow label="Pay Rate" value={`$${shift.pay.toFixed(2)} / hour`} />
                         
                         {shift.description && (
                             <View style={styles.section}>

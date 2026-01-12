@@ -3,10 +3,23 @@ import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, TouchableW
 import { ChevronDown, Check } from 'lucide-react-native';
 import { Colors } from '../constants/colors';
 
-export const CustomPicker = ({ options, selectedValue, onValueChange, placeholder, hasIcon }) => {
+interface PickerOption {
+    label: string;
+    value: string | number;
+}
+
+interface CustomPickerProps {
+    options: PickerOption[];
+    selectedValue: string | number | null;
+    onValueChange: (value: string | number) => void;
+    placeholder?: string;
+    hasIcon?: boolean;
+}
+
+export const CustomPicker: React.FC<CustomPickerProps> = ({ options, selectedValue, onValueChange, placeholder, hasIcon }) => {
     const [modalVisible, setModalVisible] = useState(false);
 
-    const handleSelect = (value) => {
+    const handleSelect = (value: string | number) => {
         onValueChange(value);
         setModalVisible(false);
     };

@@ -1,59 +1,77 @@
-
-import { collection, query, where, getDocs, doc, orderBy, onSnapshot } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from './firebase';
+import {
+    collection,
+    query,
+    where,
+    orderBy,
+    onSnapshot,
+    getDocs,
+    DocumentData,
+    QuerySnapshot,
+    Unsubscribe
+} from 'firebase/firestore';
+import { db, functions, httpsCallable } from './firebase';
 import { Conversation, Message } from '../types';
 
+// Create a callable function instance that points to the 'manageChats' cloud function
 const manageChats = httpsCallable(functions, 'manageChats');
 
-// --- READ OPERATIONS (Direct Firestore Queries) ---
+// --- WRITE OPERATIONS (Calling the 'manageChats' Cloud Function) ---
 
 /**
- * Fetches all conversations for a given user ID.
+ * Sends a message within a conversation.
+ * @param conversationId The ID of the chat conversation.
+ * @param text The message text to send.
+ * @returns A promise that resolves when the message is sent successfully.
+ */
+export const sendMessage = (conversationId: string, text: string) => {
+    return manageChats({ action: 'sendMessage', conversationId, text });
+};
+
+/**
+ * Initiates a new chat between a venue and a worker regarding a specific job.
+ * @param payload - The necessary data to initiate the chat.
+ * @returns A promise that resolves with the new conversation ID.
+ */
+export const initiateJobChat = (payload: { workerId: string; jobId: string; jobTitle: string; }) => {
+    return manageChats({ action: 'initiateJobChat', ...payload });
+};
+
+
+// --- READ OPERATIONS (Direct Firestore Queries using Web SDK) ---
+
+/**
+ * Fetches all conversations for a specific user.
  * @param userId The ID of the user.
- * @returns An array of Conversation objects.
+ * @returns A promise resolving to an array of Conversation objects.
  */
 export const getConversations = async (userId: string): Promise<Conversation[]> => {
-    const q = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
+    const q = query(collection(db, 'chats'), where('participants', 'array-contains', userId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Conversation));
 };
 
 /**
- * Creates a real-time listener for messages in a specific conversation.
+ * Sets up a real-time listener for messages in a specific conversation.
  * @param conversationId The ID of the conversation to listen to.
- * @param callback The function to call with the array of messages whenever it updates.
- * @returns The unsubscribe function for the listener.
+ * @param callback A function to be called with the array of messages whenever there's an update.
+ * @returns A function to unsubscribe from the listener.
  */
-export const onMessagesUpdate = (conversationId: string, callback: (messages: Message[]) => void) => {
-    const messagesRef = collection(db, `conversations/${conversationId}/messages`);
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+export const onNewMessage = (conversationId: string, callback: (messages: Message[]) => void): Unsubscribe => {
+    const messagesCollectionRef = collection(db, `chats/${conversationId}/messages`);
+    const q = query(messagesCollectionRef, orderBy('timestamp', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+    const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
+        const messages = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                // Make sure timestamp is a JS Date object for consistency in the app
+                timestamp: data.timestamp ? data.timestamp.toDate() : new Date(),
+            } as Message;
+        });
         callback(messages);
     });
 
     return unsubscribe;
-};
-
-
-// --- WRITE OPERATIONS (Callable Cloud Functions) ---
-
-/**
- * Sends a message in a conversation.
- * @param payload The data required for the 'sendMessage' action.
- * @returns The result from the cloud function.
- */
-export const sendMessage = (payload: { conversationId: string; text: string; }) => {
-    return manageChats({ action: 'sendMessage', ...payload });
-};
-
-/**
- * Initiates a new chat related to a job application.
- * @param payload The data required for the 'initiateJobChat' action.
- * @returns The result from the cloud function.
- */
-export const initiateJobChat = (payload: { workerId: string; jobId: string; jobTitle: string; }) => {
-    return manageChats({ action: 'initiateJobChat', ...payload });
 };

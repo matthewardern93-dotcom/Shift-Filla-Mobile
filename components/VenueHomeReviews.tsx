@@ -1,84 +1,56 @@
+
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { Star } from 'lucide-react-native';
 import { Colors } from '../constants/colors';
+import { Review } from '../types'; // Assuming Review type is defined in types.ts
+import { format } from 'date-fns';
 
-const mockReviews = [
-  {
-    id: '1',
-    workerName: 'John D.',
-    rating: 5,
-    comment: 'Great place to work! Management is very supportive.',
-    date: '2023-10-27',
-  },
-  {
-    id: '2',
-    workerName: 'Jane S.',
-    rating: 4,
-    comment: 'Good team and fun environment. Pay was on time.',
-    date: '2023-10-26',
-  },
-  {
-    id: '3',
-    workerName: 'Mike R.',
-    rating: 5,
-    comment: 'One of the best venues I have ever worked at. Highly recommend.',
-    date: '2023-10-25',
-  },
-  {
-    id: '4',
-    workerName: 'Emily B.',
-    rating: 4,
-    comment: 'The shift was busy but the staff was very helpful.',
-    date: '2023-10-24',
-  },
-  {
-    id: '5',
-    workerName: 'Chris L.',
-    rating: 5,
-    comment: 'Awesome team, great tips, and a very organized system.',
-    date: '2023-10-23',
-  },
-];
+interface VenueHomeReviewsProps {
+  reviews?: Review[];
+}
 
-const VenueHomeReviews = () => {
+const VenueHomeReviews: React.FC<VenueHomeReviewsProps> = ({ reviews }) => {
+
   const renderStars = (rating: number) => {
-    const stars = [];
-    for (let i = 0; i < 5; i++) {
-      stars.push(
-        <Star
-          key={i}
-          size={16}
-          color={i < rating ? Colors.primary : Colors.lightGray}
-          fill={i < rating ? Colors.primary : 'transparent'}
-        />
-      );
-    }
-    return stars;
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        size={16}
+        color={i < rating ? Colors.primary : Colors.lightGray}
+        fill={i < rating ? Colors.primary : 'transparent'}
+      />
+    ));
   };
 
-  const renderItem = ({ item }: { item: typeof mockReviews[0] }) => (
+  const renderItem = ({ item }: { item: Review }) => (
     <View style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
-        <Text style={styles.workerName}>{item.workerName}</Text>
+        <Text style={styles.workerName}>{item.reviewer.name || 'Anonymous'}</Text>
         <View style={styles.ratingContainer}>{renderStars(item.rating)}</View>
       </View>
-      <Text style={styles.comment}>{item.comment}</Text>
-      <Text style={styles.date}>{item.date}</Text>
+      {item.comment && <Text style={styles.comment}>{item.comment}</Text>}
+      <Text style={styles.date}>{item.date ? format(new Date(item.date), 'PP') : ''}</Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Recent Worker Reviews</Text>
-      <FlatList
-        data={mockReviews}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-      />
+      {reviews && reviews.length > 0 ? (
+        <FlatList
+          data={reviews}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+        />
+      ) : (
+        <View style={styles.noReviewsContainer}>
+          <Text style={styles.noReviewsText}>No reviews have been submitted yet.</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -135,6 +107,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'right',
+  },
+  noReviewsContainer: {
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    marginHorizontal: 15,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  noReviewsText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
 });
 

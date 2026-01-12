@@ -1,7 +1,4 @@
-
-import React from 'react';
-
-const StripeWrapper = ({ children }) => {
+const StripeWrapper = ({ children }: { children: JSX.Element }) => {
   return <>{children}</>;
 };
 

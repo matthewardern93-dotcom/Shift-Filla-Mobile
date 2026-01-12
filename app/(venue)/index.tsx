@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, FC } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, 
-  Dimensions, Switch, ScrollView
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Switch, ScrollView
 } from 'react-native';
 import { Shift, PermanentJob } from '../../types';
 import ShiftCard from '../../components/ShiftCard';
@@ -12,45 +12,45 @@ import { Fonts } from '../../constants/fonts';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format } from 'date-fns';
 import { useVenueDashboard } from '../../hooks/useVenueDashboard';
-import ReferralTracker from '../../components/ReferralTracker';
+import VenueHomeReviews from '../../components/VenueHomeReviews';
 
 const tabs = [
   { key: 'unfilled', label: 'Unfilled', statuses: ['posted', 'open'] },
   { key: 'filled', label: 'Filled', statuses: ['filled', 'confirmed', 'pending_changes'] },
 ];
 
-type UnfilledItem = (Shift | PermanentJob) & { itemType: 'shift' | 'job' };
+type DisplayItem = (Shift & { itemType: 'shift' }) | (PermanentJob & { itemType: 'job' });
 
-const NewVenueHome = () => {
-  const { venueProfile, shifts, jobs, referredVenues, isLoading, error } = useVenueDashboard();
-  const [activeTab, setActiveTab] = useState(tabs[0].key);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [isCalendarView, setIsCalendarView] = useState(false);
+const NewVenueHome: FC = () => {
+  const { venueProfile, shifts, jobs, isLoading, error } = useVenueDashboard();
+  const [activeTab, setActiveTab] = useState<string>(tabs[0].key);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [isCalendarView, setIsCalendarView] = useState<boolean>(false);
 
-  const filteredItems = useMemo(() => {
+  const filteredItems = useMemo((): DisplayItem[] => {
     const currentTab = tabs.find(t => t.key === activeTab);
     if (!currentTab) return [];
 
     const filteredShifts = shifts
-        .filter(shift => currentTab.statuses.includes(shift.status))
-        .map(s => ({ ...s, itemType: 'shift' as const }));
+        .filter(shift => shift.status && currentTab.statuses.includes(shift.status))
+        .map((s): DisplayItem => ({ ...s, itemType: 'shift' }));
 
     if (activeTab === 'unfilled') {
         const filteredJobs = jobs
-            .filter(job => currentTab.statuses.includes(job.status))
-            .map(j => ({ ...j, itemType: 'job' as const }));
+            .filter(job => job.status && currentTab.statuses.includes(job.status))
+            .map((j): DisplayItem => ({ ...j, itemType: 'job' }));
         return [...filteredShifts, ...filteredJobs];
     }
 
     return filteredShifts;
   }, [activeTab, shifts, jobs]);
 
-  const onDayPress = (day: DateData) => {
+  const onDayPress = (day: DateData): void => {
     setSelectedDate(day.dateString);
   };
 
-  const onMonthChange = (month: DateData) => {
+  const onMonthChange = (month: DateData): void => {
     setCurrentMonth(new Date(month.timestamp));
   };
 
@@ -63,29 +63,29 @@ const NewVenueHome = () => {
         }
     });
     if (marks[selectedDate]) {
-      marks[selectedDate].selected = true;
+      marks[selectedDate] = { ...marks[selectedDate], selected: true, selectedColor: Colors.primary };
     } else {
       marks[selectedDate] = { selected: true, selectedColor: Colors.primary, marked: false };
     }
     return marks;
   }, [shifts, selectedDate]);
 
-  const selectedDayShifts = useMemo(() => {
+  const selectedDayShifts = useMemo((): Shift[] => {
     return shifts.filter(shift => format(new Date(shift.startTime), 'yyyy-MM-dd') === selectedDate);
   }, [shifts, selectedDate]);
 
-  const unfilledItemsCount = useMemo(() => {
-    const unfilledShifts = shifts.filter(s => tabs[0].statuses.includes(s.status)).length;
-    const openJobs = jobs.filter(j => tabs[0].statuses.includes(j.status)).length;
+  const unfilledItemsCount = useMemo((): number => {
+    const unfilledShifts = shifts.filter(s => s.status && tabs[0].statuses.includes(s.status)).length;
+    const openJobs = jobs.filter(j => j.status && tabs[0].statuses.includes(j.status)).length;
     return unfilledShifts + openJobs;
   }, [shifts, jobs]);
 
-  const filledShiftsCount = useMemo(() => {
-    return shifts.filter(s => tabs[1].statuses.includes(s.status)).length;
+  const filledShiftsCount = useMemo((): number => {
+    return shifts.filter(s => s.status && tabs[1].statuses.includes(s.status)).length;
   }, [shifts]);
   
-  const renderContent = () => {
-    if (isLoading && !venueProfile) { // Show main loader only on initial load
+  const renderContent = (): React.ReactNode => {
+    if (isLoading && !venueProfile) { 
       return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
     }
     
@@ -116,7 +116,7 @@ const NewVenueHome = () => {
           />
           {
             selectedDayShifts.length > 0 ? (
-                selectedDayShifts.map(item => <ShiftCard key={item.id} item={item} />)
+                selectedDayShifts.map((item) => <ShiftCard key={item.id} item={item} />)
             ) : (
                 <View style={styles.placeholder}><Text style={styles.placeholderText}>No shifts scheduled for this day.</Text></View>
             )
@@ -133,8 +133,8 @@ const NewVenueHome = () => {
       <View style={styles.listContainer}>
         {filteredItems.map(item => 
             item.itemType === 'shift' 
-                ? <ShiftCard key={item.id} item={item as Shift} /> 
-                : <PTFTJobCard key={item.id} job={item as PermanentJob} />
+                ? <ShiftCard key={item.id} item={item} /> 
+                : <PTFTJobCard key={item.id} item={item} />
         )}
       </View>
     );
@@ -144,8 +144,10 @@ const NewVenueHome = () => {
     <VenueScreenTemplate>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-            <Text style={styles.headerText}>Welcome, {venueProfile?.name || ''}</Text>
+            <Text style={styles.headerText}>Welcome, {venueProfile?.venueName || ''}</Text>
         </View>
+
+        <VenueHomeReviews reviews={venueProfile?.reviews} />
 
         <View style={styles.subHeader}>
             <Text style={styles.subHeaderText}>Your Postings</Text>
@@ -174,16 +176,11 @@ const NewVenueHome = () => {
       
       {renderContent()}
       
-      {venueProfile?.referralCode &&
-        <ReferralTracker referralCode={venueProfile.referralCode} referredVenues={referredVenues || []} />
-      }
 
       </ScrollView>
     </VenueScreenTemplate>
   );
 };
-
-const windowWidth = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
     scrollContainer: {
@@ -212,7 +209,7 @@ const styles = StyleSheet.create({
   },
   subHeaderText: {
     fontSize: 18,
-    fontFamily: Fonts.sansBold,
+    fontFamily: Fonts.sans,
     color: Colors.text
   },
   tabContainer: {
@@ -234,7 +231,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: Colors.textSecondary,
-    fontFamily: Fonts.sansBold,
+    fontFamily: Fonts.sans,
     fontSize: 14,
   },
   activeTabText: {

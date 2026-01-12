@@ -1,44 +1,118 @@
 
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Colors } from '../constants/colors';
+import { format } from 'date-fns';
+import { Pencil } from 'lucide-react-native';
 
 interface DateTimePickerProps {
-  value: Date;
-  onChange: (event: any, date?: Date) => void;
+  value: Date | undefined;
+  onChange: (date: Date) => void;
   placeholder: string;
+  mode?: 'date' | 'time' | 'datetime';
 }
 
-const CustomDateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, placeholder }) => {
-  const [show, setShow] = useState(false);
+const CustomDateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, placeholder, mode = 'datetime' }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  const [currentPicker, setCurrentPicker] = useState<'date' | 'time' | null>(null);
 
-  const showPicker = () => {
-    setShow(true);
+  const handlePress = () => {
+    if (mode === 'datetime') {
+      setCurrentPicker('date');
+    } else {
+      setCurrentPicker(mode);
+    }
+    setShowPicker(true);
   };
 
-  const onPickerChange = (event: any, selectedDate?: Date) => {
-    setShow(Platform.OS === 'ios'); // Keep open on iOS
-    if (selectedDate) {
-      onChange(event, selectedDate);
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    const currentDate = selectedDate || value;
+    if (Platform.OS === 'android') {
+        setShowPicker(false);
+    }
+    
+    if (event.type === 'set' && currentDate) {
+      if (mode === 'datetime') {
+        onChange(currentDate);
+        // After selecting a date, automatically show the time picker on iOS
+        if (Platform.OS === 'ios') {
+            setCurrentPicker('time');
+        } else {
+            // For android, we need to imperatively show the next picker.
+            setTimeout(() => {
+                setCurrentPicker('time');
+                setShowPicker(true);
+            }, 500);
+        }
+      } else {
+        onChange(currentDate);
+        setCurrentPicker(null);
+      }
+    } else if (event.type === 'dismissed') {
+        setCurrentPicker(null);
+    }
+  };
+
+  const onTimeChange = (event: DateTimePickerEvent, selectedTime?: Date) => {
+    const currentTime = selectedTime || value;
+    if (Platform.OS === 'android') {
+        setShowPicker(false);
+    }
+
+    if (event.type === 'set' && currentTime && value) {
+      // Combine the date from `value` with the time from `currentTime`
+      const newDate = new Date(value);
+      newDate.setHours(currentTime.getHours());
+      newDate.setMinutes(currentTime.getMinutes());
+      newDate.setSeconds(0);
+      newDate.setMilliseconds(0);
+      onChange(newDate);
+    }
+    if (Platform.OS === 'ios' || event.type === 'dismissed' || event.type === 'set') {
+      setCurrentPicker(null);
+      setShowPicker(false);
+    }
+  };
+
+  const getDisplayFormat = () => {
+    if (!value) return placeholder;
+    switch (mode) {
+      case 'date':
+        return format(value, 'PPP');
+      case 'time':
+        return format(value, 'p');
+      default:
+        return format(value, 'PPP p');
     }
   };
 
   return (
     <View>
-      <TouchableOpacity onPress={showPicker} style={styles.input}>
-        <Text style={styles.inputText}>{
-          value ? value.toLocaleString() : placeholder
-        }</Text>
+      <TouchableOpacity onPress={handlePress} style={styles.input}>
+        <Text style={styles.inputText}>{getDisplayFormat()}</Text>
+        {mode === 'date' && <Pencil size={18} color={Colors.primary} />}
       </TouchableOpacity>
-      {show && (
+      {showPicker && currentPicker === 'date' && (
         <DateTimePicker
-          testID="dateTimePicker"
+          testID="datePicker"
           value={value || new Date()}
-          mode="datetime"
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+          accentColor={Platform.OS === 'ios' ? Colors.primary : undefined}
+          textColor={Platform.OS === 'ios' ? Colors.primary : undefined}
+        />
+      )}
+      {showPicker && currentPicker === 'time' && (
+        <DateTimePicker
+          testID="timePicker"
+          value={value || new Date()}
+          mode="time"
           is24Hour={true}
           display="default"
-          onChange={onPickerChange}
+          onChange={onTimeChange}
+          accentColor={Platform.OS === 'ios' ? Colors.primary : undefined}
         />
       )}
     </View>
@@ -53,7 +127,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   inputText: {
     fontSize: 16,

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+
+import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Animated } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Message } from '../../../types';
@@ -8,24 +9,35 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 import { format } from 'date-fns';
 import { useChat } from '../../../hooks/useChat';
 import { useUserStore } from '../../../app/store/userStore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../../services/firebase';
+import functions from '@react-native-firebase/functions';
 
 const MessageItem = ({ item, currentUserId }: { item: Message, currentUserId: string }) => {
     const swipeableRef = useRef<Swipeable>(null);
 
-    const renderRightActions = (_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const renderLeftActions = (_progress: Animated.AnimatedInterpolation<number>, _dragX: Animated.AnimatedInterpolation<number>) => {
+        let formattedTime = '';
+        const { timestamp } = item;
+
+        if (timestamp) {
+            // Handle both Firestore Timestamp objects and serialized plain objects
+            if (typeof (timestamp as any).toDate === 'function') {
+                formattedTime = format((timestamp as any).toDate(), 'p');
+            } else if (typeof (timestamp as any).seconds === 'number') {
+                formattedTime = format(new Date((timestamp as any).seconds * 1000), 'p');
+            }
+        }
+
         return (
             <View style={styles.timestampContainer}>
                 <Text style={styles.timestampText}>
-                    {format(new Date(item.timestamp), 'p')}
+                    {formattedTime}
                 </Text>
             </View>
         );
     };
 
     return (
-        <Swipeable ref={swipeableRef} renderRightActions={renderRightActions} friction={2}>
+        <Swipeable ref={swipeableRef} renderLeftActions={renderLeftActions} friction={2}>
             <View style={[styles.messageRow, item.senderId === currentUserId ? styles.sentRow : styles.receivedRow]}>
                 <View style={[styles.messageBubble, item.senderId === currentUserId ? styles.sentBubble : styles.receivedBubble]}>
                     <Text style={[styles.messageText, item.senderId === currentUserId ? styles.sentText : styles.receivedText]}>{item.text}</Text>
@@ -50,18 +62,17 @@ const ChatScreen = () => {
         setIsSending(true);
 
         try {
-            const sendMessage = httpsCallable(functions, 'sendMessage');
+            const sendMessage = functions().httpsCallable('sendMessage');
             await sendMessage({ chatId, text: textToSend });
         } catch (error) {
             console.error("Error sending message: ", error);
-            // Optionally, show an error to the user
             setNewMessage(textToSend); // Re-populate the input field so the message isn't lost
         } finally {
             setIsSending(false);
         }
     };
 
-    if (isLoading) {
+    if (isLoading || !currentUserId) {
         return <WorkerScreenTemplate><ActivityIndicator style={styles.centered} size="large" color={Colors.primary} /></WorkerScreenTemplate>;
     }
 
@@ -82,9 +93,9 @@ const ChatScreen = () => {
                     <FlatList
                         data={messages}
                         keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => <MessageItem item={item} currentUserId={currentUserId!} />}
+                        renderItem={({ item }) => <MessageItem item={item} currentUserId={currentUserId} />}
                         contentContainerStyle={styles.listContainer}
-                        inverted // To show messages from bottom
+                        inverted
                     />
                     <View style={styles.inputContainer}>
                         <TextInput
@@ -139,7 +150,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.primary,
         borderRadius: 20,
         paddingHorizontal: 20,
-        minWidth: 70, // Ensure the button has a consistent width
+        minWidth: 70,
     },
     sendButtonText: { color: Colors.white, fontWeight: 'bold' },
     timestampContainer: {

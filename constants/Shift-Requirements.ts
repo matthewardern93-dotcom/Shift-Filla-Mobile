@@ -1,4 +1,4 @@
-import { OptionType } from "@/components/ui/multi-select";
+import { OptionType } from "../components/multi-select";
 
 /**
  * A utility function to create an array of OptionType objects from an array of strings.
@@ -14,17 +14,17 @@ const createOptions = (options: string[]): OptionType[] => {
 };
 
 // The master object containing all selectable requirements for each job role.
-const requirements = {
-    bartender: createOptions(['Cocktail knowledge', 'Dispense', 'Events', 'Nightclub', 'Pos knowledge', 'Solo work', 'Speed service', 'Wine knowledge']),
-    barista: createOptions(['Dialing in', 'Events', 'Grinder adjustment', 'High volume', 'Latte art', 'Machine cleaning', 'Pos knowledge', 'Solo work']),
+const requirements: { [key: string]: OptionType[] } = {
+    'bartender': createOptions(['Cocktail knowledge', 'Dispense', 'Events', 'Nightclub', 'Pos knowledge', 'Solo work', 'Speed service', 'Wine knowledge']),
+    'barista': createOptions(['Dialing in', 'Events', 'Grinder adjustment', 'High volume', 'Latte art', 'Machine cleaning', 'Pos knowledge', 'Solo work']),
     'bar-back': createOptions(['Cleaning', 'Clearing', 'Events', 'Glass washing', 'Ice', 'Restocking']),
     'front-of-house': createOptions(['3 plate carry', 'Events', 'Fine dining', 'High volume', 'Maintain a section', 'Pos knowledge', 'Wine knowledge']),
-    host: createOptions(['Greeting Guests', 'Managing Reservations', 'Seating Guests', 'Answering Phones']),
-    events: createOptions(['Crowd Control', 'Ticket Scanning', 'Setup & Packdown']),
+    'host': createOptions(['Greeting Guests', 'Managing Reservations', 'Seating Guests', 'Answering Phones']),
+    'events': createOptions(['Crowd Control', 'Ticket Scanning', 'Setup & Packdown']),
     'tourism-reception': createOptions(['Booking Systems', 'Customer Service', 'Local Knowledge']),
-    chef: createOptions(['Cleaning', 'Desserts', 'Events', 'Grill', 'Pass', 'Prep']),
+    'chef': createOptions(['Cleaning', 'Desserts', 'Events', 'Grill', 'Pass', 'Prep']),
     'kitchen-hand': createOptions(['Basic Prep', 'Cleaning', 'Events']),
-    dishwasher: createOptions(['Basic prep', 'Cleaning', 'Events', 'Restocking Cutlery', 'Restocking plates']),
+    'dishwasher': createOptions(['Basic prep', 'Cleaning', 'Events', 'Restocking Cutlery', 'Restocking plates']),
 };
 
 /**
@@ -35,7 +35,6 @@ const requirements = {
  * @returns An array of OptionType objects for the specified role.
  */
 export const getRoleRequirements = (roleId: string, posSystem?: string): OptionType[] => {
-    // @ts-ignore
     let roleRequirements = requirements[roleId] || [];
 
     if (posSystem) {

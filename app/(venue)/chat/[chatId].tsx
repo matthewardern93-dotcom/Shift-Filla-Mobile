@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Animated } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Message } from '../../../types';
@@ -7,14 +7,13 @@ import VenueScreenTemplate from '../../../components/templates/VenueScreenTempla
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { format } from 'date-fns';
 import { useChat } from '../../../hooks/useChat';
-import { useUserStore } from '../../../app/store/userStore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../../services/firebase';
+import { useUserStore } from '../../store/userStore';
+import functions from '@react-native-firebase/functions';
 
 const MessageItem = ({ item, currentUserId }: { item: Message, currentUserId: string }) => {
     const swipeableRef = useRef<Swipeable>(null);
 
-    const renderLeftActions = (_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const renderLeftActions = (_progress: Animated.AnimatedInterpolation<number>, _dragX: Animated.AnimatedInterpolation<number>) => {
         return (
             <View style={styles.timestampContainer}>
                 <Text style={styles.timestampText}>
@@ -54,7 +53,7 @@ const ChatScreen = () => {
         setIsSending(true);
 
         try {
-            const sendMessage = httpsCallable(functions, 'sendMessage');
+            const sendMessage = functions().httpsCallable('sendMessage');
             await sendMessage({ chatId, text: textToSend });
         } catch (error) {
             console.error("Error sending message: ", error);

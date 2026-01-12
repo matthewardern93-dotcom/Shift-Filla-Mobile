@@ -1,9 +1,7 @@
-
-import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
 
-const AdminScreenTemplate = ({ children }) => {
+const AdminScreenTemplate = ({ children }: { children: JSX.Element }) => {
   return <View style={styles.container}>{children}</View>;
 };
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, Animated, Modal, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -6,11 +7,11 @@ import { Star, Briefcase, Check } from 'lucide-react-native';
 import VenueJobDetailsModal from './VenueJobDetailsModal';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
-import { useJobApplicants } from '../../hooks/useJobApplicants';
-import { functions } from '../../services/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { useJobApplicants, ApplicantWithProfile } from '../../hooks/useJobApplicants';
+import functions from '@react-native-firebase/functions';
+import { Job } from '../../types';
 
-const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, confirmText, cancelText }) => {
+const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, confirmText, cancelText }: { isVisible: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string, confirmText: string, cancelText: string }) => {
     if (!isVisible) return null;
 
     return (
@@ -38,7 +39,7 @@ const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, conf
     );
 };
 
-const JobSummaryCard = ({ job, onPress }) => {
+const JobSummaryCard = ({ job, onPress }: { job: Job, onPress: () => void}) => {
     if (!job) return null;
     return (
         <TouchableOpacity style={styles.summaryCard} onPress={onPress}>
@@ -55,42 +56,6 @@ const JobSummaryCard = ({ job, onPress }) => {
     );
 };
 
-const ApplicantCard = React.forwardRef(({ applicant, onPress, onSwipeableWillOpen }, ref) => {
-    const { profile } = applicant;
-
-    const renderLeftActions = (progress, dragX) => {
-        const scale = dragX.interpolate({ inputRange: [0, 80], outputRange: [0, 1], extrapolate: 'clamp' });
-        return (
-            <TouchableOpacity onPress={onSwipeableWillOpen} style={styles.offerBox}>
-                <Animated.View style={[{ transform: [{ scale }] }]}><Check size={24} color="#fff" /></Animated.View>
-                <Animated.Text style={[styles.offerText, { transform: [{ scale }] }]}>Shortlist</Animated.Text>
-            </TouchableOpacity>
-        );
-    };
-
-    return (
-        <Swipeable ref={ref} renderLeftActions={renderLeftActions} onSwipeableWillOpen={onSwipeableWillOpen} friction={2} leftThreshold={80} enabled={applicant.status === 'pending'}>
-            <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={1}>
-                <Image source={{ uri: profile.profilePictureUrl }} style={styles.profilePic} />
-                <View style={styles.cardInfo}>
-                    <Text style={styles.applicantName}>{profile.firstName} {profile.lastName}</Text>
-                    <View style={styles.statsContainer}>
-                        <Star size={16} color={Colors.primary} fill={Colors.primary} />
-                        <Text style={styles.rating}>{profile.ratings?.average?.toFixed(1) || 'New'}</Text>
-                        <Text style={styles.shiftsCompleted}>({profile.reliabilityScore || 0} shifts)</Text>
-                    </View>
-                </View>
-                {applicant.status === 'shortlisted' && (
-                    <View style={styles.shortlistedBadge}>
-                        <Check size={16} color={Colors.white} />
-                        <Text style={styles.shortlistedText}>Shortlisted</Text>
-                    </View>
-                )}
-            </TouchableOpacity>
-        </Swipeable>
-    );
-});
-
 const VenueJobApplicantsScreen = () => {
     const router = useRouter();
     const { jobId } = useLocalSearchParams();
@@ -99,15 +64,15 @@ const VenueJobApplicantsScreen = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isJobDetailsModalVisible, setJobDetailsModalVisible] = useState(false);
     const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
-    const [selectedApplicant, setSelectedApplicant] = useState<any>(null);
-    const rowRefs = useRef<{ [key: string]: any }>({});
+    const [selectedApplicant, setSelectedApplicant] = useState<ApplicantWithProfile | null>(null);
+    const rowRefs = useRef<{ [key: string]: Swipeable | null }>({});
 
-    const handleApplicantPress = (applicant: any) => {
+    const handleApplicantPress = (applicant: ApplicantWithProfile) => {
         if (isProcessing) return;
-        router.push({ pathname: '/(venue)/VenueApplicantProfile', params: { workerId: applicant.workerId, jobId } });
+        router.push({ pathname: '/(venue)/VenueApplicantProfile', params: { workerId: applicant.profile.id, jobId } });
     };
 
-    const handleSwipeOpen = (applicant: any) => {
+    const handleSwipeOpen = (applicant: ApplicantWithProfile) => {
         setSelectedApplicant(applicant);
         setIsConfirmModalVisible(true);
     };
@@ -119,7 +84,7 @@ const VenueJobApplicantsScreen = () => {
         setIsProcessing(true);
 
         try {
-            const shortlistFunction = httpsCallable(functions, 'shortlistApplicant');
+            const shortlistFunction = functions().httpsCallable('shortlistApplicant');
             await shortlistFunction({ jobId, applicationId: selectedApplicant.id });
             Alert.alert("Success", `${selectedApplicant.profile.firstName} has been shortlisted.`);
         } catch (err) {
@@ -127,15 +92,29 @@ const VenueJobApplicantsScreen = () => {
             Alert.alert("Error", "Could not shortlist the applicant. Please try again.");
         } finally {
             setIsProcessing(false);
-            rowRefs.current[selectedApplicant.id]?.close();
+            if (rowRefs.current[selectedApplicant.id]) {
+                rowRefs.current[selectedApplicant.id]?.close();
+            }
         }
     };
 
     const handleCancelShortlist = () => {
         setIsConfirmModalVisible(false);
         if (selectedApplicant) {
-            rowRefs.current[selectedApplicant.id]?.close();
+            if (rowRefs.current[selectedApplicant.id]) {
+                rowRefs.current[selectedApplicant.id]?.close();
+            }
         }
+    };
+
+    const renderLeftActions = (_: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, onSwipeableWillOpen: () => void) => {
+        const scale = dragX.interpolate({ inputRange: [0, 80], outputRange: [0, 1], extrapolate: 'clamp' });
+        return (
+            <TouchableOpacity onPress={onSwipeableWillOpen} style={styles.offerBox}>
+                <Animated.View style={[{ transform: [{ scale }] }]}><Check size={24} color="#fff" /></Animated.View>
+                <Animated.Text style={[styles.offerText, { transform: [{ scale }] }]}>Shortlist</Animated.Text>
+            </TouchableOpacity>
+        );
     };
 
     if (isLoading) {
@@ -154,16 +133,25 @@ const VenueJobApplicantsScreen = () => {
                     data={applicants}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
-                        <ApplicantCard 
-                            ref={ref => { if(ref) rowRefs.current[item.id] = ref }}
-                            applicant={item} 
-                            onPress={() => handleApplicantPress(item)} 
-                            onSwipeableWillOpen={() => handleSwipeOpen(item)}
-                        />
+                        <Swipeable 
+                            ref={(ref: Swipeable | null) => { if (ref) rowRefs.current[item.id] = ref }}
+                            renderLeftActions={(_, dragX) => renderLeftActions(dragX, dragX, () => handleSwipeOpen(item))}
+                            onSwipeableWillOpen={() => handleSwipeOpen(item)} friction={2} leftThreshold={80}>
+                            <TouchableOpacity style={styles.card} onPress={() => handleApplicantPress(item)} activeOpacity={1}>
+                                <Image source={{ uri: item.profile.profilePictureUrl }} style={styles.profilePic} />
+                                <View style={styles.cardInfo}>
+                                    <Text style={styles.applicantName}>{`${item.profile.firstName} ${item.profile.lastName}`}</Text>
+                                    <View style={styles.statsContainer}>
+                                        <Star size={16} color={Colors.primary} fill={Colors.primary} />
+                                        <Text style={styles.rating}>{item.profile.rating?.toFixed(1) || 'New'}</Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        </Swipeable>
                     )}
                     ListHeaderComponent={() => (
                         <>
-                            <JobSummaryCard job={job} onPress={() => setJobDetailsModalVisible(true)} />
+                            <JobSummaryCard job={job as Job} onPress={() => setJobDetailsModalVisible(true)} />
                             <Text style={styles.applicantsHeader}>{applicants.length > 0 ? 'Applicants' : 'No Applicants Yet'}</Text>
                         </>
                     )}
@@ -172,13 +160,13 @@ const VenueJobApplicantsScreen = () => {
                          !isLoading && <View style={styles.centered}><Text>No applicants for this job yet.</Text></View>
                     )}
                 />
-                {job && <VenueJobDetailsModal isVisible={isJobDetailsModalVisible} onClose={() => setJobDetailsModalVisible(false)} job={job} />}
+                {job && <VenueJobDetailsModal isVisible={isJobDetailsModalVisible} onClose={() => setJobDetailsModalVisible(false)} job={job as Job} />}
                 <ConfirmationModal 
                     isVisible={isConfirmModalVisible}
                     onClose={handleCancelShortlist}
                     onConfirm={handleConfirmShortlist}
                     title="Confirm Shortlist" 
-                    message={`Are you sure you want to shortlist ${selectedApplicant?.profile?.firstName}?`}
+                    message={`Are you sure you want to shortlist ${selectedApplicant?.profile.firstName}?`}
                     confirmText="Yes, Shortlist"
                     cancelText="Cancel"
                 />

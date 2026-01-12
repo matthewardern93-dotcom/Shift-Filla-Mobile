@@ -6,7 +6,6 @@
 import { Colors } from '@/constants/colors';
 
 export function useThemeColor(
-  props: { light?: string; dark?: string },
   colorName: keyof typeof Colors
 ) {
   // This hook no longer distinguishes between light and dark themes.

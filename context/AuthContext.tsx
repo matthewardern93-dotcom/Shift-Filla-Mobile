@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChangedListener, getUserProfile, signOut as firebaseSignOut } from '../services/auth';
-import { User as FirebaseUser } from 'firebase/auth';
+import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { WorkerProfile, VenueProfile } from '../types';
 
 type UserProfile = WorkerProfile | VenueProfile;
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: FirebaseAuthTypes.User | null;
   profile: UserProfile | null;
   isLoading: boolean;
   signOut: () => void;
@@ -23,7 +23,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

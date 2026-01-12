@@ -1,7 +1,52 @@
+// src/lib/types.ts
+import type { LucideIcon } from "lucide-react";
+// Correctly handle different Timestamp types between client and admin SDKs
+import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
+import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+type Timestamp = ClientTimestamp | AdminTimestamp;
 
-import { Timestamp } from 'firebase/firestore';
 
-// --- Profile Types ---
+// --- DATA PAYLOADS FOR FORMS ---
+export interface WorkerProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  city?: string;
+  nationality?: string;
+  dateOfBirth?: Date; // Will be converted to Timestamp by Firestore
+  skills?: string[];
+  languages?: string[];
+  description?: string;
+  visaType?: string;
+  visaExpiry?: Date; // Will be converted to Timestamp by Firestore
+  irdNumber?: string;
+  profilePictureUrl?: string;
+  referredBy?: string | null;
+  resumeUrl?: string;
+}
+
+export interface VenueProfileData {
+  venueName: string;
+  contactName: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  about?: string;
+  companyNumber?: string; // NZBN
+  posSystem?: string;
+  logoUrl?: string;
+  verificationDocumentUrls?: string[];
+  referredBy?: string | null;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
+
+
+// --- FIRESTORE DOCUMENT TYPES ---
 export interface BaseUser {
   uid: string;
   email: string;
@@ -14,7 +59,6 @@ export interface BaseProfile extends BaseUser {
 
 export interface VenueProfile {
     uid: string;
-    userType: 'venue';
     venueName: string;
     logoUrl?: string;
     address: string;
@@ -22,47 +66,30 @@ export interface VenueProfile {
     about?: string;
     avgRating?: number;
     totalShiftsPosted?: number;
-    coordinates?: {
-        lat: number;
-        lng: number;
-    };
+    posSystem?: string;
     freeShiftsRemaining?: number;
     freeJobsRemaining?: number;
-    city?: string;
-    email?: string;
-    phone?: string;
-    posSystem?: string;
-    id: string;
     reviews?: Review[];
-    stripeAccountId?: string;
-    stripeAccountStatus?: 'pending' | 'active' | 'action_required' | 'restricted';
 }
 
 export interface WorkerProfile {
     uid: string;
-    userType: 'worker';
     firstName: string; 
     lastName: string;
     email: string;
     profilePictureUrl?: string;
     description?: string;
     skills?: string[];
-    languages?: string[];
     certifications?: string[];
     avgRating?: number;
     completedShifts?: number;
     phone?: string;
+    location?: string;
     city?: string;
-    id?: string;
-    rating?: number;
-    avatarUrl?: string;
-    name?: string;
-    reviews?: Review[];
     resumeUrl?: string;
     stripeAccountStatus?: 'pending' | 'active' | 'action_required' | 'restricted';
 }
 
-export type UserProfile = WorkerProfile | VenueProfile;
 
 // --- Data & Feature Types ---
 export interface Shift {
@@ -72,18 +99,15 @@ export interface Shift {
   venueLogoUrl?: string;
   region?: string;
   role: string;
-  roleId?: string; // This is now optional as we standardize on using the capitalized `role`
+  roleId?: string;
   startTime: Date;
   endTime: Date;
   pay: number;
   location: string;
   description?: string;
-  notes?: string;
   requirements?: string[];
   uniform?: string;
-  isPriority: boolean;
   status: 'posted' | 'filled' | 'completed' | 'cancelled' | 'offered_to_worker' | 'confirmed' | 'pending_changes' | 'pending_payment' | 'pending_worker_review' | 'active';
-  paymentStatus?: 'pending_venue_payment' | 'processing_venue_payment' | 'paid_by_venue' | 'payout_initiated' | 'payout_failed' | 'paid_out_to_worker';
   workerId?: string;
   applicationCount?: number;
   breakDuration?: number;
@@ -95,10 +119,14 @@ export interface Shift {
   invoiceId?: string;
   totalPayout?: number;
   shiftGroupId?: string;
+  blockId?: string; // For grouping offers
+  city?: string;
   coordinates?: {
-      lat: number;
-      lng: number;
+    lat: number;
+    lng: number;
   };
+  createdAt?: Date;
+  acceptedAt?: Date;
 }
 
 export interface ShiftApplication {
@@ -119,26 +147,28 @@ export interface PermanentJob {
     businessName: string;
     businessLogoUrl: string;
     location: string;
-    type: 'Full-Time' | 'Part-Time';
+    type: 'Full-Time' | 'Part-Time' | 'Fixed Term';
     salary: string;
     description: string;
-    datePosted: Date;
-    startDate?: Date;
-    status?: 'active' | 'filled' | 'closed' | 'deleted';
+    datePosted?: Date;
     roleCategories: string[];
     applicantCount?: number;
     viewCount?: number;
+    status?: 'active' | 'filled' | 'deleted' | null;
+    createdAt?: Timestamp;
+    city?: string;
     coordinates?: {
         lat: number;
         lng: number;
     };
+    startDate?: Date;
 }
 
 export interface Applicant {
   id: string;
   name: string;
   avatarUrl: string;
-  skills: string[];
+  skills?: string[];
   rating: number;
   applicationDate: Date;
   status: 'pending' | 'offered' | 'hired' | 'rejected';
@@ -153,8 +183,14 @@ export interface Application {
     id: string;
     shiftId: string;
     workerId: string;
-    status: 'pending' | 'offered' | 'accepted' | 'rejected' | 'hired';
+    status: 'pending' | 'offered' | 'accepted' | 'rejected';
     appliedAt: Date;
+}
+
+export interface Feature {
+  icon: LucideIcon;
+  title: string;
+  description: string;
 }
 
 export interface SubReview {
@@ -178,7 +214,6 @@ export interface Review {
   reviewer: { name: string; };
   shiftRole?: string;
   reviewerRole: 'worker' | 'venue';
-  type?: 'venue_to_worker' | 'worker_to_venue';
 }
 
 export interface Conversation {
@@ -232,31 +267,19 @@ export interface PastWorker {
     shiftsCompleted: number;
     reviews: Review[];
     resumeUrl?: string;
-    languages?: string[];
 }
 
 export interface User {
-    id: string;
+    id: string; // This is the UID
     name: string;
     email: string;
-    role: 'worker' | 'business' | 'admin';
-    status: 'Active' | 'Pending Approval' | 'Suspended';
-    avatarUrl?: string;
+    role: 'worker' | 'business' | 'admin' | 'pending';
+    approved: boolean;
+    createdAt: Date | Timestamp;
+    // Optional fields that might be present
+    fcmTokens?: string[];
     skills?: string[];
-    rating?: number;
-    shiftsCompleted?: number;
-    reviews?: Review[];
-    // Worker specific
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
     city?: string;
-    profilePictureUrl?: string;
-    description?: string;
-    languages?: string[];
-    // Venue specific
-    businessName?: string;
-    logoUrl?: string;
 }
 
 export interface SubmittedDocument {
@@ -276,11 +299,11 @@ export interface Dispute {
     shiftId: string;
     reason: string;
     status: 'open' | 'resolved';
-    createdAt: Timestamp;
-    resolvedAt?: Timestamp;
+    createdAt: Timestamp | Date;
+    resolvedAt?: Timestamp | Date;
     shift: {
         role: string;
-        date: Timestamp;
+        date: Timestamp | Date;
     };
     parties: {
         worker: { id: string; name: string; };
@@ -292,9 +315,19 @@ export interface Dispute {
     };
 }
 
+export interface LineItem {
+    description?: string;
+    shiftId?: string;
+    shiftDate?: Date | Timestamp;
+    role?: string;
+    hours?: number;
+    rate?: number;
+    total: number;
+}
+
 export interface Invoice {
-  id: string; // The invoice number
-  shiftIds: string[];
+  id: string; // The invoice number, e.g., "10100"
+  shiftIds?: string[];
   jobPostingId?: string;
   venueId: string;
   workerId?: string;
@@ -310,17 +343,9 @@ export interface Invoice {
     name: string;
   };
 
-  lineItems: {
-    description: string;
-    shiftId?: string;
-    shiftDate?: Timestamp;
-    role?: string;
-    hours?: number;
-    rate?: number;
-    total: number;
-  }[];
+  lineItems: LineItem[];
 
-  subtotal: number; // Worker Payout or base cost
+  subtotal: number; // Worker Payout or Base Fee
   serviceFee: number;
   totalAmount: number; // Total charged to venue
   isEofy?: boolean;
@@ -331,16 +356,29 @@ export interface AppNotification {
   id: string;
   userId: string;
   title: string;
-  message: string;
-  type: 'NEW_SHIFT_POSTED' | 'NEW_JOB_POSTED' | 'shift_offer' | 'application_update' | 'review_received' | 'shift_accepted' | 'shift_declined' | 'shift_cancelled_by_worker' | 'shift_cancelled_by_venue' | 'shift_adjustment' | 'shift_adjustment_acceptance' | 'shift_adjustment_declined' | 'POOR_PERFORMANCE' | 'NEW_JOB_APPLICANT' | 'job_offer_declined' | 'shift_confirmed' | 'shift_filled';
+  description: string;
+  type: 'shift_offer' | 'shift_accepted' | 'shift_confirmed' | 'NEW_SHIFT_POSTED' | 'NEW_JOB_POSTED' | 'application_update' | 'NEW_JOB_APPLICANT' | 'review_received' | 'shift_declined' | 'shift_cancelled_by_worker' | 'shift_cancelled_by_venue' | 'shift_adjustment_declined' | 'shift_adjustment' | 'shift_adjustment_acceptance' | 'POOR_PERFORMANCE' | 'shift_filled';
   read: boolean;
   createdAt: Date;
   relatedEntityId: string;
   href: string; // The URL to navigate to when clicked
-  description?: string;
 }
 
-// Type for the full user profile object used in the admin user search
+export interface ReferredVenue {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  shiftsPosted: number;
+}
+
+export interface ReferredWorker {
+  id: string;
+  name: string;
+  shiftsCompleted: number;
+  approved: boolean;
+  avatarUrl?: string;
+}
+
 export interface FullUserProfile {
   id: string;
   userType: 'worker' | 'venue' | 'admin';
@@ -356,12 +394,12 @@ export interface FullUserProfile {
   skills?: string[];
   description?: string;
   nationality?: string;
-  visaExpiry?: Timestamp;
+  visaExpiry?: Timestamp | Date | string;
   idDocumentUrl?: string;
   visaDocumentUrl?: string;
   resumeUrl?: string;
   irdNumber?: string;
-  dateOfBirth?: Timestamp;
+  dateOfBirth?: Timestamp | Date | string;
   
   // Venue fields
   venueName?: string;
@@ -382,4 +420,5 @@ export interface FullUserProfile {
   // Related Data
   reviews?: Review[];
   disputes?: Dispute[];
+  documents?: SubmittedDocument[];
 }

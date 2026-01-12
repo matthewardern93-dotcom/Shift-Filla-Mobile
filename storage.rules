@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // --- VENUE PROFILES ---
+    // A venue can write to their own assets folder during signup.
+    // The rule ensures an authenticated user can only write to a path
+    // that matches their UID.
+    match /venues/{venueId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == venueId;
+      // Allow public reads for logos.
+      allow read: if true; 
+    }
+    
+    // --- WORKER PROFILES ---
+    // A worker can create their own folder during signup,
+    // and update/delete files within their own folder after.
+    match /WorkerProfiles/{workerId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      // Use create for initial uploads, and more specific update/delete for future changes.
+      allow create: if request.auth != null && request.auth.uid == workerId;
+      allow update, delete: if request.auth.uid == workerId;
+    }
+
+    // Default deny for all other paths not explicitly matched above.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

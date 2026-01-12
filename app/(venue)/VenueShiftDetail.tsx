@@ -2,13 +2,19 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Image } from 'expo-image';
-import { format, differenceInHours, parse } from 'date-fns';
+import { format, differenceInHours } from 'date-fns';
 import { Shift, WorkerProfile } from '../../types';
 import { Colors } from '../../constants/colors';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
-import { Calendar, Clock, DollarSign, MapPin, User, Star, MessageCircle, X, Edit, Trash2 } from 'lucide-react-native';
+import { Calendar, Clock, DollarSign, MapPin, Star, MessageCircle, X, Edit, Trash2 } from 'lucide-react-native';
 
-const DetailRow = ({ icon, label, value }) => (
+interface DetailRowProps {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ icon, label, value }) => (
     <View style={styles.detailRow}>
         <View style={styles.detailLabelContainer}>
             {icon}
@@ -33,7 +39,12 @@ const VenueShiftDetail = () => {
 
   try {
     if (params.shift) {
-      initialShift = JSON.parse(params.shift as string);
+      const parsedShift = JSON.parse(params.shift as string);
+      initialShift = {
+          ...parsedShift,
+          startTime: new Date(parsedShift.startTime),
+          endTime: new Date(parsedShift.endTime),
+      };
     }
     if (params.worker) {
       worker = JSON.parse(params.worker as string);
@@ -42,7 +53,7 @@ const VenueShiftDetail = () => {
     console.error("Failed to parse params", e);
   }
 
-  const [shift, setShift] = useState(initialShift);
+  const [shift, setShift] = useState<Shift | null>(initialShift);
 
   if (!shift) {
     Alert.alert("Error", "Shift data not found.", [{ text: "OK", onPress: () => router.back() }]);
@@ -58,8 +69,8 @@ const VenueShiftDetail = () => {
   const startTime = new Date(shift.startTime);
   const endTime = new Date(shift.endTime);
   const duration = differenceInHours(endTime, startTime);
-  const totalPay = (duration * (shift.payRate || 0)).toFixed(2);
-  const locationString = shift.location ? `${shift.location.street}, ${shift.location.city}`: 'Not specified';
+  const totalPay = (duration * (shift.pay || 0)).toFixed(2);
+  const locationString = shift.location || 'Not specified';
 
   const handleCancelShift = () => {
     Alert.alert(
@@ -67,12 +78,16 @@ const VenueShiftDetail = () => {
         "Are you sure you want to cancel this shift? This will notify the worker immediately.",
         [
             { text: "No", style: "cancel" },
-            { text: "Yes, Cancel", style: "destructive", onPress: () => {
-                console.log(`Shift ${shift.id} cancelled.`);
-                // Here you would typically call an API to update the shift status
-                // For demo purposes, we'll just navigate back.
-                router.back();
-            } }
+            {
+                text: "Yes, Cancel",
+                style: "destructive",
+                onPress: () => {
+                    console.log(`Shift ${shift.id} cancelled.`);
+                    // Here you would typically call an API to update the shift status
+                    // For demo purposes, we'll just navigate back.
+                    router.back();
+                }
+            }
         ]
     );
   }
@@ -102,12 +117,15 @@ const VenueShiftDetail = () => {
           "The worker will need to approve these changes. Are you sure?",
           [
               { text: "Cancel", style: "cancel" },
-              { text: "Confirm", onPress: () => {
-                console.log("Shift changes submitted for re-approval");
-                // Update shift object and status for demo
-                setShift({...shift, startTime: updatedStartTime, endTime: updatedEndTime, status: 'pending_changes'});
-                setEditModalVisible(false);
-              } }
+              {
+                  text: "Confirm",
+                  onPress: () => {
+                      console.log("Shift changes submitted for re-approval");
+                      // Update shift object and status for demo
+                      setShift({ ...shift, startTime: updatedStartTime, endTime: updatedEndTime, status: 'pending_changes' });
+                      setEditModalVisible(false);
+                  }
+              }
           ]
       )
   }
@@ -126,18 +144,18 @@ const VenueShiftDetail = () => {
         {worker && (
           <View style={[styles.card, styles.workerCard]}>
               <View style={styles.workerHeader}>
-                  <Image source={{ uri: worker.profilePicture }} style={styles.avatar} />
+                  <Image source={{ uri: worker.profilePictureUrl }} style={styles.avatar} />
                   <View style={styles.workerInfo}>
                       <Text style={styles.workerName}>{`${worker.firstName} ${worker.lastName}`}</Text>
                       <View style={styles.ratingContainer}>
                           <Star size={16} color={Colors.primary} fill={Colors.primary}/>
                           <Text style={styles.ratingText}>
-                            {worker.ratings?.average?.toFixed(1) || 'N/A'} ({worker.ratings?.count || 0} reviews)
+                            {worker.rating?.toFixed(1) || 'N/A'} ({worker.completedShifts || 0} shifts)
                           </Text>
                       </View>
                   </View>
               </View>
-              {worker.bio && <Text style={styles.workerBio}>{worker.bio}</Text>}
+              {worker.description && <Text style={styles.workerBio}>{worker.description}</Text>}
           </View>
         )}
 
@@ -171,7 +189,7 @@ const VenueShiftDetail = () => {
             <DetailRow 
                 icon={<DollarSign size={20} color={Colors.primary}/>} 
                 label="Pay Rate" 
-                value={`$${shift.payRate.toFixed(2)} / hour`} 
+                value={`$${shift.pay.toFixed(2)} / hour`} 
             />
             <View style={styles.totalPayRow}>
                  <Text style={styles.totalPayLabel}>Estimated Total Pay</Text>

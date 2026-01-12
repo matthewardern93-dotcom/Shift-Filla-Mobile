@@ -1,38 +1,51 @@
+import { collection, query, where, getDocs, doc, getDoc, WhereFilterOp } from 'firebase/firestore';
+import { db, functions, httpsCallable } from './firebase';
+import { Shift, Application } from '../types';
 
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from './firebase';
-import { Shift, ShiftApplication } from '../types';
+// --- Type Definitions for Payloads ---
+// This interface matches the payload expected by the `createShiftsV2` function in your backend.
+interface CreateShiftsPayload {
+    shifts: { pay: number; startTime: string; endTime: string; breakDuration?: number; shiftGroupId?: string; }[];
+    role: string;
+    roleId?: string;
+    location: string;
+    description?: string;
+    uniform?: string;
+    requirements?: string[];
+    promoCode?: string;
+}
 
+// Create a callable function instance that points to the 'manageShifts' cloud function
 const manageShifts = httpsCallable(functions, 'manageShifts');
 
-// --- READ OPERATIONS (Direct Firestore Queries) ---
+// --- READ OPERATIONS (Direct Firestore Queries using Web SDK) ---
 
-export const getShifts = async (field: string, operator: any, value: any): Promise<Shift[]> => {
-    const q = query(collection(db, 'shifts'), where(field, operator, value));
+export const getShifts = async (field: string, operator: WhereFilterOp, value: unknown): Promise<Shift[]> => {
+    const shiftsCollectionRef = collection(db, 'shifts');
+    const q = query(shiftsCollectionRef, where(field, operator, value));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Shift));
 };
 
 export const getShift = async (shiftId: string): Promise<Shift | null> => {
     const shiftDocRef = doc(db, 'shifts', shiftId);
-    const shiftDoc = await getDoc(shiftDocRef);
-    if (shiftDoc.exists()) {
-        return { id: shiftDoc.id, ...shiftDoc.data() } as Shift;
+    const docSnap = await getDoc(shiftDocRef);
+    if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Shift;
     }
     return null;
 };
 
-export const getShiftApplicants = async (shiftId: string): Promise<ShiftApplication[]> => {
-    const q = query(collection(db, `shifts/${shiftId}/applications`));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftApplication));
+export const getShiftApplications = async (shiftId: string): Promise<Application[]> => {
+    const applicationsCollectionRef = collection(db, `shifts/${shiftId}/applications`);
+    const querySnapshot = await getDocs(applicationsCollectionRef);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
 };
 
 
 // --- WRITE OPERATIONS (Calling the 'manageShifts' Cloud Function) ---
 
-export const createShifts = (payload: any) => {
+export const createShifts = (payload: CreateShiftsPayload) => {
     return manageShifts({ action: 'createShifts', ...payload });
 };
 
@@ -41,10 +54,12 @@ export const applyToShift = (shiftId: string) => {
 };
 
 export const offerShift = (payload: { shiftId: string; workerId: string; }) => {
+    // The backend action is 'offer'
     return manageShifts({ action: 'offer', ...payload });
 };
 
 export const acceptShift = (shiftId: string) => {
+    // The backend action is 'accept'
     return manageShifts({ action: 'accept', shiftId });
 };
 
@@ -53,6 +68,7 @@ export const declineOffer = (payload: { shiftId: string; reason?: string }) => {
 };
 
 export const cancelShift = (payload: { shiftId: string; reason?: string }) => {
+    // The backend action is 'cancel'
     return manageShifts({ action: 'cancel', ...payload });
 };
 
@@ -68,7 +84,7 @@ export const declineShiftChanges = (shiftId: string) => {
     return manageShifts({ action: 'declineChanges', shiftId });
 };
 
-export const directOffer = (payload: { workerId: string; shiftDetails: any }) => {
+export const directOffer = (payload: { workerId: string; shiftDetails: Partial<Shift> }) => {
     return manageShifts({ action: 'directOffer', ...payload });
 };
 

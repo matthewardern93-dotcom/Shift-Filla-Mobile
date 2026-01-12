@@ -1,7 +1,4 @@
-import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-
-import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   return (
@@ -25,29 +22,7 @@ export default function HomeScreen() {
         </Text>
       </View>
       <View style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <Text style={{fontSize: 16, fontWeight: 'bold'}}>Step 2: Explore</Text>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
+        <Text style={{fontSize: 16, fontWeight: 'bold'}}>Step 2: Explore</Text>
         <Text>
           {`Tap the Explore tab to learn more about what's included in this starter app.`}
         </Text>

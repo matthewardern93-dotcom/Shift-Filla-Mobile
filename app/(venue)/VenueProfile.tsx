@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,17 +9,11 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
-import VenueReviewsModal from '../../components/VenueReviewsModal'; // Import the modal
-
-// --- Mock Data ---
-const mockVenueProfile = {
-  venueName: "The Grand Oak Tavern",
-  about: "A historic tavern serving classic cocktails and artisanal bar food. We pride ourselves on a welcoming atmosphere for both staff and patrons. Known for our live jazz nights and extensive whiskey selection.",
-  phone: "(555) 123-4567",
-  address: "456 Heritage Lane, Suite 100, Brookside, NY 11201",
-  logoUrl: 'https://images.pexels.com/photos/1579739/pexels-photo-1579739.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-  posSystem: "Toast POS",
-};
+import VenueReviewsModal from '../../components/VenueReviewsModal';
+import { useAuth } from '../../hooks/useAuth';
+import { useVenueStore } from '../../app/store/venueStore';
+import { updateUserProfile, uploadImage } from '../../services/users';
+import { Review } from '../../types';
 
 const profileSchema = z.object({
   venueName: z.string().min(1, 'Venue name is required'),
@@ -28,15 +22,43 @@ const profileSchema = z.object({
   address: z.string().optional(),
 });
 
+type ProfileFormData = z.infer<typeof profileSchema>;
+
+const calculateAverageRating = (reviews?: Review[]) => {
+    if (!reviews || reviews.length === 0) return 'N/A';
+    const total = reviews.reduce((acc, review) => acc + review.rating, 0);
+    return (total / reviews.length).toFixed(1);
+};
+
 const VenueProfileScreen = () => {
+  const { user } = useAuth();
+  const { profile, fetchVenueProfile, updateVenueProfile: updateStoreProfile, loading } = useVenueStore();
   const [saving, setSaving] = useState(false);
-  const [logoImage, setLogoImage] = useState<string | null>(mockVenueProfile.logoUrl);
+  const [logoImage, setLogoImage] = useState<string | null>(null);
   const [isReviewsModalVisible, setReviewsModalVisible] = useState(false);
 
-  const { control, handleSubmit, formState: { errors } } = useForm({
+  const { control, handleSubmit, formState: { errors }, reset } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
-    defaultValues: mockVenueProfile,
+    defaultValues: { venueName: '', about: '', phone: '', address: '' },
   });
+
+  useEffect(() => {
+    if (user?.uid) {
+      fetchVenueProfile(user.uid);
+    }
+  }, [user, fetchVenueProfile]);
+
+  useEffect(() => {
+    if (profile) {
+      reset({
+        venueName: profile.venueName || '',
+        about: profile.about || '',
+        phone: profile.phone || '',
+        address: profile.address || '',
+      });
+      setLogoImage(profile.logoUrl || null);
+    }
+  }, [profile, reset]);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -51,15 +73,48 @@ const VenueProfileScreen = () => {
     }
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: ProfileFormData) => {
+    if (!user || !profile) {
+        Alert.alert("Error", "Authentication error. Please log in again.");
+        return;
+    }
     setSaving(true);
-    console.log("Form data to be saved:", data);
-    console.log("New logo URI:", logoImage);
-    setTimeout(() => {
+    try {
+        let logoUrl = profile.logoUrl;
+        if (logoImage && logoImage.startsWith('file:')) {
+            logoUrl = await uploadImage(logoImage, `logos/${user.uid}`);
+        }
+
+        const updatedProfileData = { 
+            ...profile, 
+            ...data, 
+            logoUrl, 
+        };
+        
+        await updateUserProfile(user.uid, updatedProfileData);
+        updateStoreProfile(updatedProfileData);
+
+        Alert.alert('Success', 'Profile updated successfully.');
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        Alert.alert('Error', 'Failed to update profile.');
+    } finally {
         setSaving(false);
-        Alert.alert('Mock Save', 'Profile changes have been logged.');
-    }, 1500);
+    }
   };
+  
+  const reviewCount = profile?.reviews?.length || 0;
+  const averageRating = calculateAverageRating(profile?.reviews);
+
+  if (loading) {
+    return (
+      <VenueScreenTemplate>
+          <View style={styles.center}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+      </VenueScreenTemplate>
+    )
+  }
 
   return (
     <VenueScreenTemplate>
@@ -70,15 +125,15 @@ const VenueProfileScreen = () => {
             </TouchableOpacity>
 
             <View style={styles.statsContainer}>
-                <TouchableOpacity onPress={() => setReviewsModalVisible(true)} style={styles.statBox}>
+                <TouchableOpacity onPress={() => setReviewsModalVisible(true)} style={styles.statBox} disabled={reviewCount === 0}>
                     <FontAwesome name="star" size={24} color={Colors.gold} />
-                    <Text style={styles.statValue}>4.8</Text>
-                    <Text style={styles.statLabel}>42 Reviews</Text>
+                    <Text style={styles.statValue}>{averageRating}</Text>
+                    <Text style={styles.statLabel}>{reviewCount} {reviewCount === 1 ? 'Review' : 'Reviews'}</Text>
                 </TouchableOpacity>
                 <View style={styles.statBox}>
                     <Feather name="calendar" size={24} color={Colors.primary} />
-                    <Text style={styles.statValue}>125</Text>
-                    <Text style={styles.statLabel}>Shifts Completed</Text>
+                    <Text style={styles.statValue}>{profile?.totalShiftsPosted || 0}</Text>
+                    <Text style={styles.statLabel}>Shifts Posted</Text>
                 </View>
             </View>
             
@@ -87,22 +142,22 @@ const VenueProfileScreen = () => {
                 <Controller control={control} name="venueName" render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} />
                 )} />
-                {errors.venueName && <Text style={styles.errorText}>{errors.venueName.message as string}</Text>}
+                {errors.venueName && <Text style={styles.errorText}>{errors.venueName.message}</Text>}
 
                 <Text style={styles.label}>About</Text>
                 <Controller control={control} name="about" render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput style={[styles.input, styles.textArea]} onBlur={onBlur} onChangeText={onChange} value={value} multiline />
+                    <TextInput style={[styles.input, styles.textArea]} onBlur={onBlur} onChangeText={onChange} value={value || ''} multiline />
                 )} />
 
                 <Text style={styles.label}>Contact Number</Text>
                 <Controller control={control} name="phone" render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} keyboardType="phone-pad" />
                 )} />
-                {errors.phone && <Text style={styles.errorText}>{errors.phone.message as string}</Text>}
+                {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
                 
                 <Text style={styles.label}>Address</Text>
                 <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} />
+                    <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} />
                 )} />
 
                  <TouchableOpacity onPress={handleSubmit(onSubmit)} style={styles.saveButton} disabled={saving}>
@@ -114,6 +169,7 @@ const VenueProfileScreen = () => {
         <VenueReviewsModal 
             visible={isReviewsModalVisible} 
             onClose={() => setReviewsModalVisible(false)} 
+            reviews={profile?.reviews || []}
         />
     </VenueScreenTemplate>
   );

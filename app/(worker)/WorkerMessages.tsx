@@ -1,29 +1,32 @@
-import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { formatDistanceToNow } from 'date-fns';
 import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplate';
-import { useChatList, Chat } from '../../hooks/useChatList';
+import { useChatList } from '../../hooks/useChatList';
+import { Conversation } from '../../types';
 
-const ConversationCard = ({ item, onPress }: { item: Chat, onPress: () => void }) => {
-    const lastMessageTimestamp = item.lastMessage?.timestamp 
-        ? formatDistanceToNow(item.lastMessage.timestamp, { addSuffix: true }) 
+const ConversationCard = ({ item, onPress }: { item: Conversation, onPress: () => void }) => {
+    const lastMessageTimestamp = item.lastMessageTimestamp 
+        ? formatDistanceToNow(new Date(item.lastMessageTimestamp), { addSuffix: true }) 
         : '';
+
+    // Find the other participant's details
+    const otherParticipant = item.participantDetails.find(p => p.id !== 'current-user-id'); // Replace with actual current user ID
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress}>
-            <Image source={{ uri: item.profilePictureUrl || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
+            <Image source={{ uri: otherParticipant?.avatarUrl || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
             <View style={styles.textContainer}>
                 <View style={styles.cardHeader}>
-                    <Text style={styles.participantName}>{item.name}</Text>
+                    <Text style={styles.participantName}>{otherParticipant?.name || 'Unknown'}</Text>
                     <Text style={styles.timestamp}>{lastMessageTimestamp}</Text>
                 </View>
                 <Text style={styles.lastMessage} numberOfLines={1}>
-                    {item.lastMessage?.text || 'No messages yet.'}
+                    {item.lastMessage || 'No messages yet.'}
                 </Text>
             </View>
-            {item.unreadCount > 0 && <View style={styles.unreadIndicator} />}
+            {/* Add unread indicator logic if needed */}
         </TouchableOpacity>
     );
 };

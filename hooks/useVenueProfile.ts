@@ -1,7 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { firestore } from '../services/firebase';
+import { db } from '../services/firebase';
 import { VenueProfile } from '../types';
 
 export const useVenueProfile = (venueId: string) => {
@@ -19,10 +17,10 @@ export const useVenueProfile = (venueId: string) => {
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
-        const docRef = doc(firestore, 'VenueProfiles', venueId);
-        const docSnap = await getDoc(docRef);
+        const docRef = db.collection('venueProfiles').doc(venueId);
+        const docSnap = await docRef.get();
 
-        if (docSnap.exists()) {
+        if (docSnap.exists) {
           setProfile({ id: docSnap.id, ...docSnap.data() } as VenueProfile);
         } else {
           setError("Venue not found.");

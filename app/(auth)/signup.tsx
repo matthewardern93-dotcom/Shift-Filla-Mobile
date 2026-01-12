@@ -1,17 +1,16 @@
-import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 
 const SignUpScreen = () => {
   const router = useRouter();
 
   const navigateToVenueSignUp = () => {
-    router.push('/(auth)/venuesignup');
+    router.push('/(auth)/venue-signup' as Href<string>);
   };
 
   const navigateToWorkerSignUp = () => {
-    router.push('/(auth)/workersignup');
+    router.push('/(auth)/worker-signup' as Href<string>);
   };
 
   return (

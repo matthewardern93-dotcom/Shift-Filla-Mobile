@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert as RNAlert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -20,10 +20,10 @@ const ForgotPasswordScreen = () => {
     try {
       await resetPassword(email);
       setIsSent(true);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Password Reset Error:', error);
       let errorMessage = 'An unexpected error occurred.';
-      if (error.code === 'auth/user-not-found') {
+      if ((error as { code: string }).code === 'auth/user-not-found') {
           errorMessage = 'No user found with this email address.';
       }
       RNAlert.alert('Error', errorMessage);
@@ -55,7 +55,7 @@ const ForgotPasswordScreen = () => {
                 <Feather name="mail" size={60} color={Colors.primary} />
                 <Text style={styles.title}>Forgot Password?</Text>
                 <Text style={styles.message}>
-                    No problem. Enter your email address below and we'll send you a link to reset your password.
+                    No problem. Enter your email address below and we&apos;ll send you a link to reset your password.
                 </Text>
                 
                 <TextInput

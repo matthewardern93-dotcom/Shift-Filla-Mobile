@@ -1,14 +1,21 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView, Image, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Image, Linking, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { format, differenceInHours } from 'date-fns';
 import { Shift } from '../../types';
 import { Colors } from '../../constants/colors';
 import { Calendar, Clock, DollarSign, MapPin, Shirt, AlertCircle, FileText } from 'lucide-react-native';
 import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplate';
+import React, { useState, useEffect, ReactNode } from 'react';
 
-const DetailRow = ({ icon, label, value, onPress }) => (
+interface DetailRowProps {
+    icon: ReactNode;
+    label: string;
+    value: string;
+    onPress?: () => void;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ icon, label, value, onPress }) => (
     <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.detailRow}>
         <View style={styles.detailLabelContainer}>
             {icon}
@@ -18,7 +25,13 @@ const DetailRow = ({ icon, label, value, onPress }) => (
     </TouchableOpacity>
 );
 
-const Section = ({ title, children, icon }) => (
+interface SectionProps {
+    title: string;
+    children: ReactNode;
+    icon: ReactNode;
+}
+
+const Section: React.FC<SectionProps> = ({ title, children, icon }) => (
     <View style={styles.section}>
         <View style={styles.sectionHeader}>
             {icon}
@@ -33,19 +46,30 @@ const Section = ({ title, children, icon }) => (
 const WorkerRosterShiftDetails = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
-  let shift: Shift | null = null;
+  const [shift, setShift] = useState<Shift | null>(null);
 
-  try {
-    if (params.shift) {
-      shift = JSON.parse(params.shift as string);
+  useEffect(() => {
+    try {
+      if (params.shift && typeof params.shift === 'string') {
+        const parsedShift = JSON.parse(params.shift);
+
+        // Re-hydrate date fields
+        if (parsedShift.startTime) {
+            parsedShift.startTime = new Date(parsedShift.startTime);
+        }
+        if (parsedShift.endTime) {
+            parsedShift.endTime = new Date(parsedShift.endTime);
+        }
+
+        setShift(parsedShift);
+      }
+    } catch (e) {
+      console.error("Failed to parse params", e);
+      Alert.alert("Error", "Shift data not found.", [{ text: "OK", onPress: () => router.back() }]);
     }
-  } catch (e) {
-    console.error("Failed to parse params", e);
-  }
+  }, [params.shift]);
 
   if (!shift) {
-    Alert.alert("Error", "Shift data not found.", [{ text: "OK", onPress: () => router.back() }]);
     return (
         <WorkerScreenTemplate>
             <View style={styles.centered}>
@@ -55,27 +79,24 @@ const WorkerRosterShiftDetails = () => {
     );
   }
 
-  const startTime = new Date(shift.startTime);
-  const endTime = new Date(shift.endTime);
+  // Correctly destructure properties from the Shift type
+  const { id, role, venueName, venueLogoUrl, pay, startTime, endTime, location, coordinates, businessId, description, uniform, requirements } = shift;
+
   const duration = differenceInHours(endTime, startTime);
-  const totalPay = (duration * shift.payRate).toFixed(2);
-  const locationString = shift.venue?.location ? `${shift.venue.location.street}, ${shift.venue.location.city}` : 'Not specified';
+  const totalPay = (duration * pay).toFixed(2);
 
   const openInMaps = () => {
-    if (!shift.venue?.location) return;
-
-    const { street, city, latitude, longitude } = shift.venue.location;
-    const address = `${street}, ${city}`;
-    
+    if (!location) return;
+    const encodedLocation = encodeURIComponent(location);
     let url = '';
     if (Platform.OS === 'ios') {
-      url = latitude && longitude 
-        ? `http://maps.apple.com/?ll=${latitude},${longitude}&q=${encodeURIComponent(address)}`
-        : `http://maps.apple.com/?q=${encodeURIComponent(address)}`;
+      url = coordinates
+        ? `http://maps.apple.com/?ll=${coordinates.lat},${coordinates.lng}&q=${encodedLocation}`
+        : `http://maps.apple.com/?q=${encodedLocation}`;
     } else { 
-      url = latitude && longitude
-        ? `geo:${latitude},${longitude}?q=${encodeURIComponent(address)}`
-        : `geo:0,0?q=${encodeURIComponent(address)}`;
+      url = coordinates
+        ? `geo:${coordinates.lat},${coordinates.lng}?q=${encodedLocation}`
+        : `geo:0,0?q=${encodedLocation}`;
     }
     
     Linking.canOpenURL(url)
@@ -96,7 +117,7 @@ const WorkerRosterShiftDetails = () => {
         [
             { text: "No", style: "cancel" },
             { text: "Yes, Cancel", onPress: () => {
-                console.log(`Cancelled shift ${shift.id}`);
+                console.log(`Cancelled shift ${id}`);
                 router.back();
             } }
         ]
@@ -109,15 +130,15 @@ const WorkerRosterShiftDetails = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         <View style={styles.headerInfo}>
-            <View>
-                <Text style={styles.roleTitle}>{shift.role}</Text>
-                <Text style={styles.venueName}>{shift.venue.name}</Text>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.roleTitle}>{role}</Text>
+                <Text style={styles.venueName}>{venueName}</Text>
             </View>
             <TouchableOpacity 
-                onPress={() => router.push({ pathname: '/(worker)/WorkerViewVenueProfile', params: { venue: JSON.stringify(shift.venue) } })} 
+                onPress={() => router.push({ pathname: '/(worker)/WorkerViewVenueProfile', params: { venueId: businessId } })} 
                 style={styles.venueProfileContainer}
             >
-                <Image source={{ uri: shift.venue.profilePictureUrl || 'https://via.placeholder.com/80' }} style={styles.venueImage} />
+                <Image source={{ uri: venueLogoUrl || 'https://via.placeholder.com/80' }} style={styles.venueImage} />
                 <Text style={styles.viewProfileText}>View Profile</Text>
             </TouchableOpacity>
         </View>
@@ -136,13 +157,13 @@ const WorkerRosterShiftDetails = () => {
             <DetailRow 
                 icon={<MapPin size={20} color={Colors.primary}/>} 
                 label="Location" 
-                value={locationString} 
+                value={location} 
                 onPress={openInMaps}
             />
             <DetailRow 
                 icon={<DollarSign size={20} color={Colors.primary}/>} 
                 label="Pay Rate" 
-                value={`$${shift.payRate.toFixed(2)} / hour`} 
+                value={`$${pay.toFixed(2)} / hour`} 
             />
             <View style={styles.totalPayRow}>
                  <Text style={styles.totalPayLabel}>Estimated Total Pay</Text>
@@ -150,21 +171,21 @@ const WorkerRosterShiftDetails = () => {
             </View>
         </View>
         
-        {shift.description && (
+        {description && (
             <Section title="Job Description" icon={<FileText size={20} color={Colors.primary}/>}>
-                <Text style={styles.sectionText}>{shift.description}</Text>
+                <Text style={styles.sectionText}>{description}</Text>
             </Section>
         )}
 
-        {shift.uniform && (
+        {uniform && (
             <Section title="Uniform" icon={<Shirt size={20} color={Colors.primary}/>}>
-                <Text style={styles.sectionText}>{shift.uniform}</Text>
+                <Text style={styles.sectionText}>{uniform}</Text>
             </Section>
         )}
 
-        {shift.requirements && shift.requirements.length > 0 && (
+        {requirements && requirements.length > 0 && (
             <Section title="Requirements" icon={<AlertCircle size={20} color={Colors.primary}/>}>
-                {shift.requirements.map((req, index) => (
+                {requirements.map((req, index) => (
                     <View key={index} style={styles.requirementItem}>
                         <Text style={styles.bulletPoint}>•</Text>
                         <Text style={styles.sectionText}>{req}</Text>
@@ -214,6 +235,8 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         color: Colors.text,
+        flexShrink: 1, 
+        marginRight: 10
     },
     venueName: {
         fontSize: 18,

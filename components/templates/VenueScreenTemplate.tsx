@@ -1,53 +1,63 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal, Text, TouchableWithoutFeedback, Linking, Animated } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
-import { ChevronDown, Bell, Mail, User, Home, Search, Settings, Shield, LogOut, Clock, Plus, CalendarPlus, FileText, X } from 'lucide-react-native';
+import { useRouter, usePathname, Href } from 'expo-router';
+import { ChevronDown, Bell, Mail, User, Home, Search, Shield, LogOut, Clock, Plus, CalendarPlus, FileText, X, Users } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { useUserStore } from '../../store/userStore'; // Updated to use a global store
-import { useChatStore } from '../../store/chatStore'; // Import the new chat store
+import { useUserStore } from '../../app/store/userStore';
+import { useChatStore } from '../../app/store/chatStore';
 
-const VenueScreenTemplate = ({ children }) => {
+const VenueScreenTemplate = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut } = useUserStore(); // Using the global user store for signout and user info
+  const { user, signOut } = useUserStore();
   const { hasUnreadMessages, subscribeToConversations, clearUnreadState } = useChatStore();
   
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isNotificationsVisible, setNotificationsVisible] = useState(false);
   const [isPostModalVisible, setPostModalVisible] = useState(false);
+  const [flashAnim] = useState(() => new Animated.Value(1));
 
-  // Subscribe to conversations on component mount
   useEffect(() => {
     if (user?.uid) {
       subscribeToConversations(user.uid);
     }
     return () => {
-      clearUnreadState(); // Cleanup on unmount
+      clearUnreadState();
     };
-  }, [user?.uid]);
-
-  // --- Flashing Animation for Mail Icon ---
-  const flashAnim = useRef(new Animated.Value(1)).current;
+  }, [user?.uid, subscribeToConversations, clearUnreadState]);
 
   useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null;
     if (hasUnreadMessages) {
-      Animated.loop(
+      animation = Animated.loop(
         Animated.sequence([
           Animated.timing(flashAnim, { toValue: 0.2, duration: 800, useNativeDriver: true }),
           Animated.timing(flashAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      animation.start();
     } else {
-      flashAnim.stopAnimation();
       flashAnim.setValue(1);
     }
+
+    return () => {
+      if (animation) {
+        animation.stop();
+      }
+    };
   }, [hasUnreadMessages, flashAnim]);
 
+  const handleNavigate = (href: Href) => {
+    router.push(href);
+    setMenuVisible(false);
+  };
+
   const menuItems = [
-    { label: 'Search Staff', icon: Search, action: () => router.push('/(venue)/VenueSearchStaff') },
-    { label: 'Detailed Shift Managment', icon: Clock, action: () => router.push('/(venue)/VenueRoster') },
-    { label: 'Settings', icon: Settings, action: () => router.push('/(venue)/VenueSettings') },
+    { label: 'Search Staff', icon: Search, action: () => handleNavigate({ pathname: '/(venue)/VenueSearchStaff' }) },
+    { label: 'Detailed Shift Managment', icon: Clock, action: () => handleNavigate({ pathname: '/(venue)/VenueRoster' }) },
+    // Casting to `any` to bypass the incorrect TS error, as the generated route types are out of sync.
+    { label: 'Referrals', icon: Users, action: () => handleNavigate({ pathname: '/(venue)/referrals' as any }) },
     { label: 'Legal', icon: Shield, action: () => Linking.openURL('https://www.website.com/legal') },
     { label: 'Log Out', icon: LogOut, action: () => signOut() },
   ];
@@ -56,7 +66,6 @@ const VenueScreenTemplate = ({ children }) => {
 
   return (
     <View style={styles.container}>
-      {/* Main Menu Dropdown */}
       <Modal
         transparent={true}
         animationType="fade"
@@ -70,10 +79,7 @@ const VenueScreenTemplate = ({ children }) => {
                 <TouchableOpacity
                   key={index}
                   style={styles.menuItem}
-                  onPress={() => {
-                    item.action();
-                    setMenuVisible(false);
-                  }}
+                  onPress={item.action}
                 >
                   <item.icon color={Colors.primary} size={24} />
                   <Text style={styles.menuItemText}>{item.label}</Text>
@@ -111,14 +117,14 @@ const VenueScreenTemplate = ({ children }) => {
           <View style={styles.postModalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.postModalContainer}>
-                  <TouchableOpacity style={styles.modalButton} onPress={() => {setPostModalVisible(false); router.push('/(venue)/PostShift');}}>
+                  <TouchableOpacity style={styles.modalButton} onPress={() => {setPostModalVisible(false); router.push({ pathname: '/(venue)/PostShift' });}}>
                       <CalendarPlus color={Colors.primary} size={28} />
                       <View style={styles.modalButtonTextContainer}>
                           <Text style={styles.modalButtonTitle}>Post a Shift</Text>
                           <Text style={styles.modalButtonSubtitle}>Create a new single-day opening</Text>
                       </View>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalButton} onPress={() => {setPostModalVisible(false); router.push('/(venue)/PostJob');}}>
+                  <TouchableOpacity style={styles.modalButton} onPress={() => {setPostModalVisible(false); router.push({ pathname: '/(venue)/PostJob' });}}>
                       <FileText color={Colors.primary} size={28} />
                       <View style={styles.modalButtonTextContainer}>
                           <Text style={styles.modalButtonTitle}>Post a Job</Text>
@@ -139,7 +145,7 @@ const VenueScreenTemplate = ({ children }) => {
           <ChevronDown color={Colors.secondary} size={32} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer} />
-        <TouchableOpacity onPress={() => router.push('/(venue)/VenueNotifications')} style={styles.headerIcon}>
+        <TouchableOpacity onPress={() => router.push({ pathname: '/(venue)/VenueNotifications' })} style={styles.headerIcon}>
           <Bell color={Colors.secondary} size={32} />
         </TouchableOpacity>
       </View>
@@ -148,16 +154,16 @@ const VenueScreenTemplate = ({ children }) => {
 
       {!isChatScreen && (
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push('/(venue)/VenueProfile')}>
+          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push({ pathname: '/(venue)/VenueProfile' })}>
             <User color={Colors.secondary} size={32} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push('/(venue)/')}>
+          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push({ pathname: '/(venue)/' })}>
             <Home color={Colors.secondary} size={32} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.navIconContainer} onPress={() => setPostModalVisible(true)}>
             <Plus color={Colors.secondary} size={32} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push('/(venue)/VenueMessages')}>
+          <TouchableOpacity style={styles.navIconContainer} onPress={() => router.push({ pathname: '/(venue)/VenueMessages' })}>
             <Animated.View style={{ opacity: flashAnim }}>
               <Mail color={Colors.secondary} size={32} />
             </Animated.View>

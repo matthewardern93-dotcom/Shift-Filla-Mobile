@@ -1,9 +1,9 @@
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Text, View, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
-import { useUserStore } from '../../store/userStore';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useUserStore } from '../store/userStore';
+import { useNotificationStore } from '../store/notificationStore';
 import { AppNotification } from '../../types';
 import { Colors } from '../../constants/colors';
 
@@ -25,7 +25,7 @@ const VenueNotificationsScreen = () => {
     return () => {
       clearNotifications();
     };
-  }, [user?.uid]);
+  }, [user?.uid, fetchNotifications, clearNotifications]);
 
   const handlePress = (item: AppNotification) => {
     if (!item.read) {
@@ -41,7 +41,7 @@ const VenueNotificationsScreen = () => {
         <Text style={styles.itemTitle}>{item.title}</Text>
         <Text style={styles.itemMessage}>{item.message}</Text>
         <Text style={styles.itemDate}>
-            {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleString() : ''}
+            {item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}
         </Text>
       </View>
     </TouchableOpacity>

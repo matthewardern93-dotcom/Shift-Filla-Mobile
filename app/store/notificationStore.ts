@@ -44,7 +44,7 @@ export const useNotificationStore = create<NotificationState & NotificationActio
             const notifications = await getNotifications(userId, false, 100); // Fetch all (up to 100)
             const unreadCount = notifications.filter(n => !n.read).length;
             set({ notifications, unreadCount, isLoading: false });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Failed to fetch notifications:", error);
             set({ error: "Could not load notifications.", isLoading: false });
         }

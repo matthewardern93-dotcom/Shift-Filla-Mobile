@@ -8,8 +8,22 @@ import { format } from 'date-fns';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { useShiftApplicants } from '../../hooks/useShiftApplicants';
+import { Shift, WorkerProfile } from '../../types';
 
-const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, confirmText, cancelText }) => {
+// Extended types to include properties not in the base types
+interface ShiftWithDetails extends Shift {
+  hourlyRate: number;
+  offers?: { [key: string]: boolean };
+}
+
+interface Applicant extends WorkerProfile {
+  ratings?: {
+    average?: number;
+  };
+  reliabilityScore?: number;
+}
+
+const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, confirmText, cancelText }: { isVisible: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string, confirmText: string, cancelText: string }) => {
     if (!isVisible) return null;
 
     return (
@@ -37,7 +51,7 @@ const ConfirmationModal = ({ isVisible, onClose, onConfirm, title, message, conf
     );
 };
 
-const ShiftSummaryCard = ({ shift, onPress }) => {
+const ShiftSummaryCard = ({ shift, onPress }: { shift: ShiftWithDetails | null, onPress: () => void }) => {
     if (!shift) return null;
     return (
         <TouchableOpacity style={styles.summaryCard} onPress={onPress}>
@@ -55,10 +69,10 @@ const ShiftSummaryCard = ({ shift, onPress }) => {
     );
 };
 
-const ApplicantCard = forwardRef(({ applicant, onPress, onSwipeableWillOpen, shift }, ref) => {
-    const isOffered = shift.offers && shift.offers[applicant.id];
+const ApplicantCard = forwardRef(({ applicant, onPress, onSwipeableWillOpen, shift }: { applicant: Applicant, onPress: () => void, onSwipeableWillOpen: () => void, shift: ShiftWithDetails }, ref: React.Ref<Swipeable>) => {
+    const isOffered = shift.offers && shift.offers[applicant.id || ''];
 
-    const renderLeftActions = (progress, dragX) => {
+    const renderLeftActions = (_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
         const scale = dragX.interpolate({ inputRange: [0, 80], outputRange: [0, 1], extrapolate: 'clamp' });
         return (
             <TouchableOpacity onPress={onSwipeableWillOpen} style={styles.offerBox}>
@@ -97,29 +111,33 @@ const ApplicantCard = forwardRef(({ applicant, onPress, onSwipeableWillOpen, shi
     );
 });
 
+ApplicantCard.displayName = 'ApplicantCard';
+
 const VenueShiftApplicantsScreen = () => {
     const router = useRouter();
     const { shiftId } = useLocalSearchParams();
-    const { shift, applicants, isLoading, error, offerShiftToWorker } = useShiftApplicants(shiftId as string);
+    const { shift: baseShift, applicants: baseApplicants, isLoading, error, offerShiftToWorker } = useShiftApplicants(shiftId as string);
+    const shift = baseShift as ShiftWithDetails | null;
+    const applicants = baseApplicants as Applicant[];
     
     const [isProcessing, setIsProcessing] = useState(false);
     const [isShiftDetailsModalVisible, setShiftDetailsModalVisible] = useState(false);
     const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
-    const [selectedApplicant, setSelectedApplicant] = useState<any>(null);
-    const rowRefs = useRef<{ [key: string]: any }>({});
+    const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+    const rowRefs = useRef<{ [key: string]: Swipeable | null }>({});
 
-    const handleApplicantPress = (applicantId: string) => {
-        if (isProcessing) return;
+    const handleApplicantPress = (applicantId: string | undefined) => {
+        if (isProcessing || !applicantId) return;
         router.push({ pathname: '/(venue)/VenueApplicantProfile', params: { workerId: applicantId, shiftId } });
     };
 
-    const handleSwipeOpen = (applicant: any) => {
+    const handleSwipeOpen = (applicant: Applicant) => {
         setSelectedApplicant(applicant);
         setIsConfirmModalVisible(true);
     };
 
     const handleConfirmOffer = async () => {
-        if (!selectedApplicant) return;
+        if (!selectedApplicant || !selectedApplicant.id) return;
 
         setIsConfirmModalVisible(false);
         setIsProcessing(true);
@@ -127,9 +145,10 @@ const VenueShiftApplicantsScreen = () => {
         try {
             await offerShiftToWorker(selectedApplicant.id);
             Alert.alert("Offer Sent", `Shift offer has been sent to ${selectedApplicant.firstName}.`); 
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Error offering shift:", e);
-            Alert.alert("Offer Error", e.message || "Failed to send shift offer. Please try again.");
+            const message = e instanceof Error ? e.message : "Failed to send shift offer. Please try again.";
+            Alert.alert("Offer Error", message);
         } finally {
             setIsProcessing(false);
             rowRefs.current[selectedApplicant.id]?.close();
@@ -138,7 +157,7 @@ const VenueShiftApplicantsScreen = () => {
 
     const handleCancelOffer = () => {
         setIsConfirmModalVisible(false);
-        if (selectedApplicant) {
+        if (selectedApplicant && selectedApplicant.id) {
             rowRefs.current[selectedApplicant.id]?.close();
         }
     };
@@ -157,15 +176,17 @@ const VenueShiftApplicantsScreen = () => {
                 <Stack.Screen options={{ title: 'Shift Applicants', headerBackTitle: 'Roster' }} />
                 <FlatList
                     data={applicants}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.id || ''}
                     renderItem={({ item }) => (
-                        <ApplicantCard 
-                            ref={ref => { if(ref) rowRefs.current[item.id] = ref }}
-                            applicant={item} 
-                            shift={shift!}
-                            onPress={() => handleApplicantPress(item.id)} 
-                            onSwipeableWillOpen={() => handleSwipeOpen(item)}
-                        />
+                        shift ? (
+                            <ApplicantCard 
+                                ref={ref => { if(ref && item.id) rowRefs.current[item.id] = ref }}
+                                applicant={item} 
+                                shift={shift}
+                                onPress={() => handleApplicantPress(item.id)} 
+                                onSwipeableWillOpen={() => handleSwipeOpen(item)}
+                            />
+                        ) : null
                     )}
                     ListHeaderComponent={() => (
                         <>

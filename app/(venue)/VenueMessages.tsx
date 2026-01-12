@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
@@ -6,15 +5,17 @@ import { Colors } from '../../constants/colors';
 import { formatDistanceToNow } from 'date-fns';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
 import { useVenueConversations } from '../../hooks/useVenueConversations';
+import { Conversation } from '../../types';
 
-const ConversationCard = ({ item, currentUserId, onPress }) => {
-    const { participantProfile } = item;
-    const lastMessageTimestamp = item.lastMessageTimestamp ? formatDistanceToNow(new Date(item.lastMessageTimestamp.seconds * 1000), { addSuffix: true }) : '';
-    const participantName = participantProfile ? `${participantProfile.firstName} ${participantProfile.lastName}` : 'Unknown User';
+const ConversationCard = ({ item, currentUserId, onPress }: { item: Conversation, currentUserId: string, onPress: () => void }) => {
+    const { participantDetails } = item;
+    const lastMessageTimestamp = item.lastMessageTimestamp ? formatDistanceToNow(item.lastMessageTimestamp, { addSuffix: true }) : '';
+    const participant = participantDetails.find(p => p.id !== currentUserId);
+    const participantName = participant ? participant.name : 'Unknown User';
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress}>
-            <Image source={{ uri: participantProfile?.profilePictureUrl || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
+            <Image source={{ uri: participant?.avatarUrl || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
             <View style={styles.textContainer}>
                 <View style={styles.cardHeader}>
                     <Text style={styles.participantName}>{participantName}</Text>
@@ -23,7 +24,7 @@ const ConversationCard = ({ item, currentUserId, onPress }) => {
                 <Text style={styles.jobTitle}>{item.jobTitle}</Text>
                 <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessage}</Text>
             </View>
-            {item.unreadBy && item.unreadBy.includes(currentUserId) && <View style={styles.unreadIndicator} />}
+            {item.readBy && !item.readBy.includes(currentUserId) && <View style={styles.unreadIndicator} />}
         </TouchableOpacity>
     );
 };
@@ -56,7 +57,7 @@ const VenueMessagesScreen = () => {
                         renderItem={({ item }) => (
                             <ConversationCard 
                                 item={item} 
-                                currentUserId={user?.uid}
+                                currentUserId={user?.uid as any}
                                 onPress={() => handlePressConversation(item.id)} 
                             />
                         )}

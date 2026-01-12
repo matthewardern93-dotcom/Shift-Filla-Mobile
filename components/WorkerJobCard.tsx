@@ -1,29 +1,34 @@
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../constants/colors';
-import { Fonts } from '../constants/fonts';
 import { Briefcase, MapPin } from 'lucide-react-native';
+import { Job } from '../types';
 
-const WorkerJobCard = ({ item, onPress }) => {
+interface WorkerJobCardProps {
+    item: Job;
+    onPress: () => void;
+}
+
+const WorkerJobCard: React.FC<WorkerJobCardProps> = ({ item, onPress }) => {
     return (
         <TouchableOpacity style={styles.card} onPress={onPress}>
             <View style={styles.header}>
-                <Text style={styles.role}>{item.role}</Text>
-                <Text style={styles.payType}>{item.payType}</Text>
+                <Text style={styles.role}>{item.title}</Text>
+                <Text style={styles.payType}>{item.salary}</Text>
             </View>
 
             <View style={styles.detailRow}>
                 <View style={styles.detailItem}>
                     <Briefcase size={14} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{item.venue.name}</Text>
+                    <Text style={styles.detailText}>{item.businessName}</Text>
                 </View>
-                <Text style={styles.distance}>5 km away</Text>
             </View>
 
             <View style={styles.detailRow}>
                 <View style={styles.detailItem}>
                     <MapPin size={14} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{item.venue.location.city}</Text>
+                    <Text style={styles.detailText}>{item.location}</Text>
                 </View>
             </View>
 
@@ -43,7 +48,7 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 2,
         borderLeftWidth: 4,
-        borderLeftColor: Colors.accent,
+        borderLeftColor: Colors.primary,
     },
     header: {
         flexDirection: 'row',
@@ -55,13 +60,11 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: 'bold',
         color: Colors.text,
-        fontFamily: Fonts.sansBold,
     },
     payType: {
         fontSize: 15,
         fontWeight: 'bold',
-        color: Colors.accent,
-        fontFamily: Fonts.sansBold,
+        color: Colors.primary,
     },
     detailRow: {
         flexDirection: 'row',
@@ -77,12 +80,10 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: Colors.textSecondary,
         marginLeft: 6,
-        fontFamily: Fonts.sans,
     },
     distance: {
         fontSize: 12,
         color: Colors.textSecondary,
-        fontFamily: Fonts.sans,
     },
 });
 

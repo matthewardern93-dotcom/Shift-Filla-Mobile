@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, MapPin, Star, Calendar } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplate';
 import { Image } from 'expo-image';
-import WorkerViewVenueReviewsModal from '../../components/WorkerViewVenueReviewsModal';
-import { useVenueProfile } from '../../hooks/useVenueProfile'; // Import the hook
+import WorkerReviewsModal from '../../components/WorkerReviewsModal'; // Corrected import
+import { useVenueProfile } from '../../hooks/useVenueProfile';
+import { Review } from '../../types';
 
 const WorkerViewVenueProfile = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { venueId } = params;
+  const venueIdParam = params.venueId;
+  const venueId = Array.isArray(venueIdParam) ? venueIdParam[0] : venueIdParam;
+
   const { profile: venue, isLoading, error } = useVenueProfile(venueId as string);
   const [isReviewsModalVisible, setReviewsModalVisible] = useState(false);
 
@@ -33,7 +36,12 @@ const WorkerViewVenueProfile = () => {
     );
   }
 
-  const reviewCount = venue.reviews?.length || 0;
+  const workerReviewsOfVenue = venue.reviews?.filter(
+    (review: Review) => review.type === 'worker_to_venue'
+  ) || [];
+
+  const reviewCount = workerReviewsOfVenue.length;
+  const placeholderImage = 'https://placehold.co/120x120/EFEFEF/A9A9A9?text=Venue';
 
   return (
     <WorkerScreenTemplate>
@@ -43,14 +51,14 @@ const WorkerViewVenueProfile = () => {
             </TouchableOpacity>
 
             <View style={styles.profileHeader}>
-                <Image source={{ uri: venue.logoUrl }} style={styles.profileImage} />
+                <Image source={{ uri: venue.logoUrl || placeholderImage }} style={styles.profileImage} />
                 <Text style={styles.venueName}>{venue.venueName}</Text>
             </View>
 
             <View style={styles.statsContainer}>
                 <View style={styles.statBox}>
                     <Star size={24} color={Colors.gold} />
-                    <Text style={styles.statValue}>{venue.rating?.toFixed(1) || 'N/A'}</Text>
+                    <Text style={styles.statValue}>{venue.avgRating?.toFixed(1) || 'N/A'}</Text>
                     <Text style={styles.statLabel}>Rating</Text>
                 </View>
                 <View style={styles.statBox}>
@@ -69,7 +77,7 @@ const WorkerViewVenueProfile = () => {
                 <Text style={styles.sectionTitle}>Location</Text>
                 <View style={styles.locationRow}>
                     <MapPin size={20} color={Colors.textSecondary} />
-                    <Text style={styles.addressText}>{`${venue.address}, ${venue.city}`}</Text>
+                    <Text style={styles.addressText}>{`${venue.address}${venue.city ? ', ' + venue.city : ''}`}</Text>
                 </View>
             </View>
 
@@ -79,11 +87,10 @@ const WorkerViewVenueProfile = () => {
 
         </ScrollView>
 
-        <WorkerViewVenueReviewsModal 
-            visible={isReviewsModalVisible}
+        <WorkerReviewsModal 
+            isVisible={isReviewsModalVisible}
             onClose={() => setReviewsModalVisible(false)}
-            reviews={venue.reviews || []}
-            venueName={venue.venueName}
+            reviews={workerReviewsOfVenue}
         />
     </WorkerScreenTemplate>
   );
@@ -105,7 +112,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
   detailsSection: { backgroundColor: '#fff', borderRadius: 12, padding: 20, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginBottom: 12 },
-  aboutText:. { fontSize: 16, color: Colors.text, lineHeight: 24 },
+  aboutText: { fontSize: 16, color: Colors.text, lineHeight: 24 },
   locationRow: { flexDirection: 'row', alignItems: 'center' },
   addressText: { fontSize: 16, color: Colors.textSecondary, marginLeft: 10, flexShrink: 1 },
   reviewsButton: { backgroundColor: Colors.primary, borderRadius: 8, padding: 15, alignItems: 'center', marginVertical: 20 },

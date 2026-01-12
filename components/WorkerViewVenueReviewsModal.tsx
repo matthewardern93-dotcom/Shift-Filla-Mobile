@@ -6,7 +6,24 @@ import { Star, Building, Calendar, Clock } from 'lucide-react-native';
 import { format, differenceInHours } from 'date-fns';
 import { Shift } from '../types';
 
-const WorkerViewVenueReviewsModal = ({ visible, shift, onSubmit, onClose }) => {
+interface WorkerViewVenueReviewsModalProps {
+    visible: boolean;
+    shift: Shift | null;
+    onSubmit: (review: { rating: number; comment: string; shiftId: string }) => void;
+    onClose: () => void;
+}
+
+// Create a type for objects that have a toDate method, like Firestore Timestamps.
+type TimestampLike = { toDate: () => Date };
+
+const toDate = (date: Date | TimestampLike): Date => {
+  if (date && 'toDate' in date) {
+    return date.toDate();
+  }
+  return new Date(date);
+};
+
+const WorkerViewVenueReviewsModal = ({ visible, shift, onSubmit, onClose }: WorkerViewVenueReviewsModalProps): React.ReactElement | null => {
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
 
@@ -14,12 +31,12 @@ const WorkerViewVenueReviewsModal = ({ visible, shift, onSubmit, onClose }) => {
         return null; 
     }
 
-    const startTime = new Date(shift.startTime);
-    const endTime = new Date(shift.endTime);
+    const startTime = toDate(shift.startTime);
+    const endTime = toDate(shift.endTime);
     const duration = differenceInHours(endTime, startTime);
-    const totalPay = (duration * shift.payRate).toFixed(2);
+    const totalPay = (duration * shift.pay).toFixed(2);
 
-    const handleStarPress = (index) => {
+    const handleStarPress = (index: number) => {
         setRating(index + 1);
     };
 
@@ -62,7 +79,7 @@ const WorkerViewVenueReviewsModal = ({ visible, shift, onSubmit, onClose }) => {
 
                         <View style={styles.shiftDetailsContainer}>
                             <Text style={styles.shiftRole}>{shift.role}</Text>
-                            <View style={styles.detailItem}><Building size={16} color={Colors.textSecondary} /><Text style={styles.detailText}>{shift.venue.name}</Text></View>
+                            <View style={styles.detailItem}><Building size={16} color={Colors.textSecondary} /><Text style={styles.detailText}>{shift.venueName}</Text></View>
                             <View style={styles.detailItem}><Calendar size={16} color={Colors.textSecondary} /><Text style={styles.detailText}>{format(startTime, 'eeee, MMM dd, yyyy')}</Text></View>
                             <View style={styles.detailItem}><Clock size={16} color={Colors.textSecondary} /><Text style={styles.detailText}>{`${format(startTime, 'p')} - ${format(endTime, 'p')} (${duration} hours)`}</Text></View>
                             <View style={styles.totalPayContainer}>
@@ -73,7 +90,7 @@ const WorkerViewVenueReviewsModal = ({ visible, shift, onSubmit, onClose }) => {
                         </View>
 
                         <View style={styles.reviewContainer}>
-                            <Text style={styles.reviewTitle}>How was your shift at {shift.venue.name}?</Text>
+                            <Text style={styles.reviewTitle}>How was your shift at {shift.venueName}?</Text>
                             <View style={styles.starsContainer}>
                                 {[...Array(5)].map((_, index) => (
                                     <TouchableOpacity key={index} onPress={() => handleStarPress(index)}>
@@ -141,7 +158,7 @@ const styles = StyleSheet.create({
     shiftRole: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
     detailItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     detailText: { marginLeft: 10, fontSize: 16, color: Colors.textSecondary },
-    totalPayContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.extraLightGray },
+    totalPayContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.lightGray },
     totalPayLabel: { fontSize: 16, fontWeight: 'bold', color: Colors.text },
     totalPayValue: { marginLeft: 8, fontSize: 18, fontWeight: 'bold', color: Colors.primary },
     invoiceText: {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format } from 'date-fns';
@@ -8,10 +8,23 @@ import { Colors } from '../../../constants/colors';
 import WorkerScreenTemplate from '../../../components/templates/WorkerScreenTemplate';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Define the shape of a single marking
+interface CustomMarking {
+  customStyles: {
+    container: { backgroundColor: string; borderRadius: number };
+    text: { color: string };
+  };
+}
+
+// Define the shape of the markedDates object
+interface MarkedDates {
+  [key: string]: CustomMarking;
+}
+
 const AVAILABILITY_STORAGE_KEY = '@workerAvailability';
 
 const AvailabilityScreen = () => {
-  const [markedDates, setMarkedDates] = useState({});
+  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
 
   useEffect(() => {
     const loadAvailability = async () => {
@@ -30,19 +43,16 @@ const AvailabilityScreen = () => {
   const onDayPress = (day: DateData) => {
     const { dateString } = day;
     const currentState = markedDates[dateString];
-    let newState = { ...markedDates };
+    const newState: MarkedDates = { ...markedDates };
 
-    const greenMarking = { customStyles: { container: { backgroundColor: Colors.success, borderRadius: 8 }, text: { color: 'white' } } };
-    const redMarking = { customStyles: { container: { backgroundColor: Colors.danger, borderRadius: 8 }, text: { color: 'white' } } };
+    const greenMarking: CustomMarking = { customStyles: { container: { backgroundColor: Colors.success, borderRadius: 8 }, text: { color: 'white' } } };
+    const redMarking: CustomMarking = { customStyles: { container: { backgroundColor: Colors.danger, borderRadius: 8 }, text: { color: 'white' } } };
 
     if (!currentState) {
-      // Not marked -> Mark as Green (Available)
       newState[dateString] = greenMarking;
-    } else if (currentState.customStyles.container.backgroundColor === Colors.success) {
-      // Green -> Mark as Red (Not Available)
+    } else if (currentState.customStyles?.container?.backgroundColor === Colors.success) {
       newState[dateString] = redMarking;
     } else {
-      // Red -> Unmark
       delete newState[dateString];
     }
 

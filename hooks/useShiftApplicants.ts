@@ -1,7 +1,7 @@
+
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { firestore, functions } from '../../services/firebase'; 
-import { httpsCallable } from 'firebase/functions'; 
+import firestore from '@react-native-firebase/firestore';
+import functions from '@react-native-firebase/functions';
 import { Shift, WorkerProfile } from '../types';
 
 export const useShiftApplicants = (shiftId: string) => {
@@ -17,11 +17,11 @@ export const useShiftApplicants = (shiftId: string) => {
       return;
     }
 
-    const shiftRef = doc(firestore, "Shifts", shiftId);
+    const shiftRef = firestore().collection("shifts").doc(shiftId);
 
-    const unsubscribe = onSnapshot(shiftRef, async (shiftSnap) => {
+    const unsubscribe = shiftRef.onSnapshot(async (shiftSnap) => {
       setIsLoading(true);
-      if (!shiftSnap.exists()) {
+      if (!shiftSnap.exists) {
         setError("Shift not found.");
         setIsLoading(false);
         return;
@@ -31,20 +31,20 @@ export const useShiftApplicants = (shiftId: string) => {
       setShift(shiftData);
 
       try {
-        if (shiftData.applicants && shiftData.applicants.length > 0) {
-          const applicantPromises = shiftData.applicants.map(applicantId => 
-            getDoc(doc(firestore, "WorkerProfiles", applicantId))
+        if (shiftData.appliedWorkerIds && shiftData.appliedWorkerIds.length > 0) {
+          const applicantPromises = shiftData.appliedWorkerIds.map(applicantId => 
+            firestore().collection("workerProfiles").doc(applicantId).get()
           );
           const applicantDocs = await Promise.all(applicantPromises);
           const applicantData = applicantDocs
-            .map(docSnap => docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as WorkerProfile : null)
+            .map(docSnap => docSnap.exists ? { id: docSnap.id, ...docSnap.data() } as WorkerProfile : null)
             .filter((app): app is WorkerProfile => app !== null);
 
           setApplicants(applicantData);
         } else {
           setApplicants([]);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Error fetching applicants:", e);
         setError("Failed to load applicant profiles.");
       } finally {
@@ -60,7 +60,7 @@ export const useShiftApplicants = (shiftId: string) => {
   }, [shiftId]);
 
   const offerShiftToWorker = async (workerId: string) => {
-    const manageShifts = httpsCallable(functions, 'manageShifts');
+    const manageShifts = functions().httpsCallable('manageShifts');
     await manageShifts({ 
       action: 'offer',
       shiftId: shiftId,

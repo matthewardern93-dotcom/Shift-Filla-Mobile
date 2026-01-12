@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // This rule covers all collections where user profiles are stored.
+    match /{profileCollection}/{userId} where profileCollection in ['WorkerProfiles', 'venues', 'VenueProfiles'] {
+    
+      // Allow any authenticated user to create their own profile document.
+      // The document ID (e.g., the part after 'WorkerProfiles/') must match their own user ID (uid).
+      // This is the key to fixing your "missing or insufficient permissions" error.
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow a user to read or update their own profile.
+      // Also, allow a user with an admin custom claim (set by your cloud function) to read or update any profile.
+      allow read, update: if request.auth != null && (request.auth.uid == userId || request.auth.token.admin == true);
+      
+      // Allow admins to list documents in these collections for the approval queue.
+      allow list: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}

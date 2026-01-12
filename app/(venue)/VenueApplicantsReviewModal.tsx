@@ -1,10 +1,10 @@
-import React from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, FlatList, SafeAreaView } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { X, Star } from 'lucide-react-native';
 import { format } from 'date-fns';
+import { Review } from '../../types';
 
-const StarRating = ({ rating }) => (
+const StarRating = ({ rating }: { rating: number }) => (
     <View style={styles.starContainer}>
         {[1, 2, 3, 4, 5].map((star) => (
             <Star 
@@ -17,22 +17,27 @@ const StarRating = ({ rating }) => (
     </View>
 );
 
-const ReviewCard = ({ review }) => (
+const ReviewCard = ({ review }: { review: Review }) => (
     <View style={styles.reviewCard}>
         <View style={styles.reviewHeader}>
-            <Text style={styles.reviewerName}>{review.venue}</Text>
+            <Text style={styles.reviewerName}>{review.reviewer.name}</Text>
             <Text style={styles.reviewDate}>{format(new Date(review.date), "PPP")}</Text>
         </View>
         <View style={styles.ratingContainer}>
              <StarRating rating={review.rating} />
              <Text style={styles.ratingText}>{review.rating.toFixed(1)}</Text>
         </View>
-        <Text style={styles.reviewComment}>"{review.comment}"</Text>
+        <Text style={styles.reviewComment}>&quot;{review.comment}&quot;</Text>
     </View>
 );
 
-// The modal now accepts the reviews directly as a prop.
-const VenueApplicantsReviewModal = ({ isVisible, onClose, reviews = [] }) => {
+interface VenueApplicantsReviewModalProps {
+    isVisible: boolean;
+    onClose: () => void;
+    reviews: Review[];
+}
+
+const VenueApplicantsReviewModal = ({ isVisible, onClose, reviews = [] }: VenueApplicantsReviewModalProps) => {
 
     return (
         <Modal
@@ -52,7 +57,7 @@ const VenueApplicantsReviewModal = ({ isVisible, onClose, reviews = [] }) => {
                     {reviews.length > 0 ? (
                         <FlatList
                             data={reviews}
-                            keyExtractor={(item) => item.id}
+                            keyExtractor={(item, index) => item.id || index.toString()}
                             renderItem={({ item }) => <ReviewCard review={item} />}
                             contentContainerStyle={styles.listContainer}
                         />

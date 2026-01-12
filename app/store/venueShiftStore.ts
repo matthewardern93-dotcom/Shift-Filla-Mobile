@@ -1,13 +1,6 @@
 
 import { create } from 'zustand';
-import { firestore } from '../../services/firebase';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Timestamp,
-} from 'firebase/firestore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { Shift } from '../../types';
 
 interface VenueShiftState {
@@ -26,7 +19,7 @@ const initialState: VenueShiftState = {
   shifts: [],
   isLoading: true,
   error: null,
-  unsubscribe: () => {},
+  unsubscribe: () => { /* intentionally empty */ },
 };
 
 export const useVenueShiftStore = create<VenueShiftState & VenueShiftActions>((set, get) => ({
@@ -40,24 +33,28 @@ export const useVenueShiftStore = create<VenueShiftState & VenueShiftActions>((s
 
     set({ isLoading: true });
 
-    const shiftsQuery = query(
-      collection(firestore, 'shifts'),
-      where('venue.id', '==', venueId) // Filter shifts by the venue's ID
-    );
+    const shiftsQuery = firestore()
+      .collection('shifts')
+      .where('businessId', '==', venueId); // Filter shifts by the venue's ID
 
-    const unsubscribe = onSnapshot(shiftsQuery, (snapshot) => {
+    const unsubscribe = shiftsQuery.onSnapshot((snapshot) => {
       const fetchedShifts = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
           ...data,
-          startTime: (data.startTime as Timestamp)?.toDate(),
-          endTime: (data.endTime as Timestamp)?.toDate(),
+          startTime: (data.startTime as FirebaseFirestoreTypes.Timestamp)?.toDate(),
+          endTime: (data.endTime as FirebaseFirestoreTypes.Timestamp)?.toDate(),
         } as Shift;
       });
       
       // Sort shifts by start time, upcoming first
-      const sortedShifts = fetchedShifts.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+      const sortedShifts = fetchedShifts.sort((a, b) => {
+        if (a.startTime && b.startTime) {
+            return a.startTime.getTime() - b.startTime.getTime();
+        }
+        return 0; // Handle cases where startTime might be null
+    });
       
       set({ shifts: sortedShifts, isLoading: false, error: null });
 

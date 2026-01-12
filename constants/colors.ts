@@ -14,4 +14,6 @@ export const Colors = {
   gold: '#FFD700',
   textSecondary: '#6B7280',
   danger: '#EF4444',
+  warning: '#f5a623',
+  black: '#000000',
 };

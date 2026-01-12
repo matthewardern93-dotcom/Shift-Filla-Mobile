@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
-import { doc, getDoc } from 'firebase/firestore';
-import { firestore } from '../../services/firebase';
+import { db } from '../../services/firebase';
 import { WorkerProfile } from '../../types';
 
 const useWorkerProfile = (workerId: string) => {
@@ -23,18 +22,22 @@ const useWorkerProfile = (workerId: string) => {
     const fetchWorker = async () => {
       setIsLoading(true);
       try {
-        const workerRef = doc(firestore, "WorkerProfiles", workerId);
-        const workerSnap = await getDoc(workerRef);
+        const workerRef = db.collection("workers").doc(workerId);
+        const workerSnap = await workerRef.get();
 
-        if (!workerSnap.exists()) {
+        if (!workerSnap.exists) {
           throw new Error("Worker not found.");
         }
 
         setWorker({ id: workerSnap.id, ...workerSnap.data() } as WorkerProfile);
 
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Error fetching worker profile:", e);
-        setError(e.message);
+        if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError("An unknown error occurred.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -50,7 +53,7 @@ const useWorkerProfile = (workerId: string) => {
 const VenueApplicantProfileScreen = () => {
   const router = useRouter();
   const { workerId } = useLocalSearchParams<{ workerId: string }>();
-  const { worker, isLoading, error } = useWorkerProfile(workerId);
+  const { worker, isLoading, error } = useWorkerProfile(workerId!);
 
   if (isLoading) {
     return (
@@ -89,8 +92,8 @@ const VenueApplicantProfileScreen = () => {
                 <Image source={{ uri: worker.profilePictureUrl || 'https://via.placeholder.com/100' }} style={styles.profileImage} />
                 <Text style={styles.workerName}>{worker.firstName} {worker.lastName}</Text>
                 <View style={styles.workerStats}>
-                    <Text style={styles.rating}>⭐ {worker.ratings?.average?.toFixed(1) || 'New'}</Text>
-                    <Text style={styles.jobs}>({worker.reliabilityScore || 0} shifts completed)</Text>
+                    <Text style={styles.rating}>⭐ {worker.rating?.toFixed(1) || 'New'}</Text>
+                    <Text style={styles.jobs}>({worker.completedShifts || 0} shifts completed)</Text>
                 </View>
             </View>
             
@@ -101,7 +104,7 @@ const VenueApplicantProfileScreen = () => {
 
              <View style={styles.detailsSection}>
                 <Text style={styles.sectionTitle}>About</Text>
-                <Text style={styles.aboutText}>{worker.bio}</Text>
+                <Text style={styles.aboutText}>{worker.description}</Text>
             </View>
 
         </View>

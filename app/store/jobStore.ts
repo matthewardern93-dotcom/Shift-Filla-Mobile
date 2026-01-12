@@ -1,7 +1,6 @@
 
 import { create } from 'zustand';
-import { firestore } from '../../services/firebase';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { Job } from '../../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -25,14 +24,14 @@ const initialState: JobState = {
   jobs: [],
   hasNewJobs: false,
   isLoading: true,
-  unsubscribe: () => {},
+  unsubscribe: () => { /* intentionally empty */ },
 };
 
 export const useJobStore = create<JobState & JobActions>((set, get) => ({
   ...initialState,
 
   subscribeToJobs: async () => {
-    if (get().unsubscribe !== (() => {})) {
+    if (get().unsubscribe !== (() => { /* intentionally empty */ })) {
         get().cleanup(); // Cleanup previous listener if any
     }
 
@@ -42,18 +41,17 @@ export const useJobStore = create<JobState & JobActions>((set, get) => ({
     const lastViewedString = await AsyncStorage.getItem(LAST_VIEWED_JOBS_KEY);
     const lastViewedTimestamp = lastViewedString ? new Date(JSON.parse(lastViewedString)) : null;
 
-    const q = query(
-      collection(firestore, 'jobs'),
-      where('status', '==', 'open') // Only get open jobs
-    );
+    const q = firestore()
+      .collection('jobs')
+      .where('status', '==', 'open'); // Only get open jobs
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = q.onSnapshot((snapshot) => {
       const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Job[];
       
       let newJobFound = false;
       if (lastViewedTimestamp) {
         newJobFound = jobs.some(job => 
-            job.createdAt && (job.createdAt as Timestamp).toDate() > lastViewedTimestamp
+            job.createdAt && (job.createdAt as FirebaseFirestoreTypes.Timestamp).toDate() > lastViewedTimestamp
         );
       }
       

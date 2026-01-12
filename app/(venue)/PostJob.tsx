@@ -1,88 +1,90 @@
-
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert as RNAlert, SafeAreaView, Modal, TouchableWithoutFeedback } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Briefcase, MapPin, DollarSign, Type, FileText, Trash2, X } from 'lucide-react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert as RNAlert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { auth, db, doc, getDoc, onAuthStateChanged } from '../../services/firebase';
 import { Colors } from '../../constants/colors';
 import { skillsList } from '../../constants/Skills';
-import { CustomPicker } from '../../components/Picker';
-import MultiSelect from '../../components/multi-select';
-import { createJob } from '../../services/jobs';
-import { VenueProfile } from '../../types';
-import JobShiftCostSummary from '../../components/JobShiftCostSummary';
+import { CustomPicker } from '../../components/CustomPicker';
+import { auth, db } from '../../services/firebase';
+import firestore from '@react-native-firebase/firestore';
+import { VenueProfile, Job } from '../../types';
+import { X } from 'lucide-react-native';
 
-const formSchema = z.object({
-  title: z.string().min(3, "Job title must be at least 3 characters long."),
-  roleCategories: z.array(z.string()).min(1, "Please select at least one role category."),
-  location: z.string().min(2, "Location is required."),
-  type: z.enum(['Full-Time', 'Part-Time'], { required_error: "Please select a job type." }),
-  salary: z.string().min(1, "Salary information is required."),
-  payType: z.enum(['hourly', 'salary'], { required_error: "Please select a pay type." }),
-  description: z.string().min(20, "Description must be at least 20 characters."),
+const jobSchema = z.object({
+  title: z.string().min(1, 'Job title is required'),
+  role: z.string().min(1, 'Role is required'),
+  employmentType: z.string().min(1, 'Please select an employment type'),
+  description: z.string().min(50, 'Description must be at least 50 characters'),
+  requirements: z.string().optional(),
+  payRate: z.number().min(1, 'Please enter a valid pay rate'),
 });
 
-type JobFormData = z.infer<typeof formSchema>;
+type JobFormData = z.infer<typeof jobSchema>;
 
-const FormField = ({ label, icon, children, error, containerStyle }) => (
-  <View style={[styles.fieldContainer, containerStyle]}>
-    {label && <Text style={styles.label}>{label}</Text>}
-    <View style={[styles.inputContainer, error && styles.inputError]}>
-      {icon}
-      {children}
-    </View>
-    {error && <Text style={styles.errorText}>{error.message}</Text>}
-  </View>
-);
+type PostJobScreenProps = {
+  isVisible: boolean;
+  closeModal: () => void;
+  venueProfile: VenueProfile | null;
+  draft?: Partial<JobFormData>;
+};
 
-const PostJobScreen = () => {
-    const router = useRouter();
-    const [venueProfile, setVenueProfile] = useState<VenueProfile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isModalVisible, setIsModalVisible] = useState(true); // Start with the modal visible
-    const [costDetails, setCostDetails] = useState({ listingFee: 50, serviceFee: 0, totalCost: 50 });
-
-    const { control, handleSubmit, setValue, getValues, formState: { errors } } = useForm<JobFormData>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            title: "",
-            roleCategories: [],
-            location: "",
-            salary: "",
-            description: "",
-        },
+const PostJobScreen: React.FC<PostJobScreenProps> = ({ isVisible, closeModal, venueProfile, draft }) => {
+    const {
+        control,
+        handleSubmit,
+        formState: { errors, isValid },
+        watch,
+        reset
+    } = useForm<JobFormData>({
+        resolver: zodResolver(jobSchema),
+        defaultValues: draft || {
+            title: '',
+            role: '',
+            employmentType: '',
+            description: '',
+            requirements: '',
+            payRate: undefined,
+        }
     });
 
-    // MOCK DATA
-    useEffect(() => {
-        const mockProfile: VenueProfile = { id: "mock-venue-id", venueName: "The Mock Tavern", address: "123 Test Street", city: "Deville", phone: "555-555-5555", logoUrl: "", posSystem: "Toast" };
-        setVenueProfile(mockProfile);
-        setValue('location', `${mockProfile.address}, ${mockProfile.city}`.trim());
-        setIsLoading(false);
-    }, [setValue]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const onFormSubmit = async (values: JobFormData) => {
+    useEffect(() => {
+        reset(draft);
+    }, [draft, reset]);
+
+    const payRate = watch('payRate');
+
+    const costDetails = useMemo(() => {
+        const rate = payRate || 0;
+        const weeklyHours = 40; // Standard assumption
+        const weeklyCost = rate * weeklyHours;
+        const platformFee = weeklyCost * 0.05; // 5% weekly fee
+        const totalWeekly = weeklyCost + platformFee;
+        return { weeklyCost, platformFee, totalWeekly };
+    }, [payRate]);
+
+    if (!isVisible) return null;
+
+    const onSubmit = async (values: JobFormData) => {
         if (!venueProfile) {
-            RNAlert.alert("Error", "Venue profile is not loaded.");
+            RNAlert.alert("Error", "Venue profile is not available.");
             return;
         }
-
         setIsSubmitting(true);
         try {
-            console.log("--- MOCK JOB SUBMISSION ---");
-            console.log("DATA:", JSON.stringify({
+            const newJob: Omit<Job, 'id'> = {
                 ...values,
-                venueId: venueProfile.id,
-                venueName: venueProfile.venueName,
-                status: 'open',
-                applicants: [],
+                businessId: venueProfile.id,
+                businessName: venueProfile.venueName,
+                businessLogoUrl: venueProfile.logoUrl || '',
+                status: 'active',
+                datePosted: firestore.Timestamp.fromDate(new Date()),
                 ...costDetails
-            }, null, 2));
-            RNAlert.alert("Success", "Job data logged to console!");
+            };
+            await db.collection("permanent_jobs").add(newJob);
+            RNAlert.alert("Success", "Your job has been posted!");
             closeModal();
         } catch (error) {
             console.error("Error posting job:", error);
@@ -91,7 +93,7 @@ const PostJobScreen = () => {
             setIsSubmitting(false);
         }
     };
-    
+
     const handleDeleteDraft = () => {
         RNAlert.alert("Delete Draft", "Are you sure you want to discard this draft?", [
             { text: "Cancel", style: "cancel" },
@@ -99,122 +101,177 @@ const PostJobScreen = () => {
         ]);
     }
 
-    const closeModal = () => {
-        setIsModalVisible(false);
-        router.back();
-    };
-    
-    if (isLoading) {
-        return (
-            <Modal
-                animationType="slide"
-                transparent={false}
-                visible={isModalVisible}
-            >
-                <SafeAreaView style={styles.centered}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                </SafeAreaView>
-            </Modal>
-        );
-    }
-    
-    const roleCategoryOptions = skillsList.map(skill => ({ value: skill.id, label: skill.label }));
-    const jobTypeOptions = [{ label: 'Full-Time', value: 'Full-Time' }, { label: 'Part-Time', value: 'Part-Time' }];
-    const payTypeOptions = [{ label: 'Per Hour', value: 'hourly' }, { label: 'Per Year', value: 'salary' }];
-
     return (
-        <Modal
-            animationType="slide"
-            transparent={false}
-            visible={isModalVisible}
-            onRequestClose={closeModal}
-        >
-            <SafeAreaView style={styles.safeArea}>
-                <ScrollView contentContainerStyle={styles.scrollContainer}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Post a New Job</Text>
-                        <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-                            <X size={24} color={Colors.text} />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.subtitle}>Define the role and requirements for your next permanent hire.</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Post a New Job</Text>
+                <TouchableOpacity onPress={handleDeleteDraft} style={styles.closeButton}>
+                    <X size={24} color={Colors.primary} />
+                </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.formContainer}>
+                <Text style={styles.sectionTitle}>Job Details</Text>
+                <Controller name="title" control={control} render={({ field: { onChange, onBlur, value } }) => <TextInput style={styles.input} placeholder="Job Title (e.g., Head Chef)" onBlur={onBlur} onChangeText={onChange} value={value} />} />
+                {errors.title && <Text style={styles.errorText}>{errors.title.message}</Text>}
 
-                    <View style={styles.section}>
-                        <FormField label="Job Title" icon={<Briefcase size={20} color={Colors.gray} />} error={errors.title}>
-                            <Controller name="title" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput style={styles.textInput} placeholder="e.g., Lead Barista" onBlur={onBlur} onChangeText={onChange} value={value} />)} />
-                        </FormField>
-                        <FormField label="Role Categories" icon={<Briefcase size={20} color={Colors.gray} />} error={errors.roleCategories} containerStyle={{ marginBottom: 0 }}>
-                            <Controller name="roleCategories" control={control} render={({ field: { onChange, value } }) => (<MultiSelect options={roleCategoryOptions} selected={value || []} onChange={onChange} placeholder="Select applicable roles..." />)} />
-                        </FormField>
-                    </View>
+                <Controller name="role" control={control} render={({ field: { onChange, value } }) => <CustomPicker placeholder="Select a role" options={skillsList.map(s => ({label: s.label, value: s.id}))} selectedValue={value} onValueChange={onChange} />} />
+                {errors.role && <Text style={styles.errorText}>{errors.role.message}</Text>}
 
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Job Details</Text>
-                        <FormField label="Location" icon={<MapPin size={20} color={Colors.gray} />} error={errors.location}>
-                            <TextInput style={styles.textInput} value={getValues('location')} editable={false} />
-                        </FormField>
-                        <View style={styles.timePayGrid}>
-                            <View style={styles.gridItem}>
-                                <FormField label="Job Type" icon={<Type size={20} color={Colors.gray} />} error={errors.type}>
-                                    <Controller name="type" control={control} render={({ field: { onChange, value } }) => (<CustomPicker options={jobTypeOptions} selectedValue={value} onValueChange={onChange} placeholder="Select Type" />)} />
-                                </FormField>
-                            </View>
-                            <View style={styles.gridItem}>
-                               <FormField label="Pay Type" icon={<FileText size={20} color={Colors.gray} />} error={errors.payType}>
-                                    <Controller name="payType" control={control} render={({ field: { onChange, value } }) => (<CustomPicker options={payTypeOptions} selectedValue={value} onValueChange={onChange} placeholder="Select Type"/>)} />
-                                </FormField>
-                            </View>
-                        </View>
-                         <FormField label="Salary / Rate" icon={<DollarSign size={20} color={Colors.gray} />} error={errors.salary}>
-                            <Controller name="salary" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput style={styles.textInput} placeholder="e.g., 25 or 50000" onBlur={onBlur} onChangeText={onChange} value={value} keyboardType="numeric" />)} />
-                        </FormField>
-                    </View>
+                <Controller name="employmentType" control={control} render={({ field: { onChange, value } }) => <CustomPicker placeholder="Select Employment Type" options={[{label: 'Full-time', value: 'Full-time'}, {label: 'Part-time', value: 'Part-time'}]} selectedValue={value} onValueChange={onChange} />} />
+                {errors.employmentType && <Text style={styles.errorText}>{errors.employmentType.message}</Text>}
 
-                    <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>Job Description</Text>
-                      <FormField error={errors.description} containerStyle={{marginBottom: 0}}>
-                          <Controller name="description" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput style={[styles.textInput, styles.textArea]} onBlur={onBlur} onChangeText={onChange} value={value} multiline placeholder="Describe the role, responsibilities, benefits..." />)} />
-                      </FormField>
-                    </View>
-                    <JobShiftCostSummary details={costDetails} />
-                </ScrollView>
+                <Text style={styles.sectionTitle}>Job Description & Requirements</Text>
+                <Controller name="description" control={control} render={({ field: { onChange, onBlur, value } }) => <TextInput style={[styles.input, styles.textArea]} placeholder="Describe the role, responsibilities, and what makes your venue a great place to work..." multiline onBlur={onBlur} onChangeText={onChange} value={value} />} />
+                {errors.description && <Text style={styles.errorText}>{errors.description.message}</Text>}
 
-                <View style={styles.footer}>
-                    <TouchableOpacity onPress={handleDeleteDraft} style={styles.deleteButton}>
-                        <Trash2 size={22} color={Colors.danger} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.publishButton} onPress={handleSubmit(onFormSubmit)} disabled={isSubmitting}>
-                        {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.publishButtonText}>Publish Job Posting</Text>}
-                    </TouchableOpacity>
+                <Controller name="requirements" control={control} render={({ field: { onChange, onBlur, value } }) => <TextInput style={[styles.input, styles.textArea]} placeholder="List any required skills, experience, or qualifications..." multiline onBlur={onBlur} onChangeText={onChange} value={value} />} />
+
+                <Text style={styles.sectionTitle}>Compensation</Text>
+                <View style={styles.payRateContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <Controller name="payRate" control={control} render={({ field: { onChange, onBlur, value } }) => <TextInput style={styles.payInput} placeholder="25.00" keyboardType="decimal-pad" onBlur={onBlur} onChangeText={(text) => onChange(parseFloat(text) || 0)} value={value ? String(value) : ''} />} />
+                    <Text style={styles.payRateLabel}>/ hour</Text>
                 </View>
-            </SafeAreaView>
-        </Modal>
+                {errors.payRate && <Text style={styles.errorText}>{errors.payRate.message}</Text>}
+
+                <View style={styles.costSummary}>
+                    <Text style={styles.summaryTitle}>Estimated Weekly Cost</Text>
+                    <View style={styles.summaryRow}>
+                        <Text>Weekly Cost (40hrs):</Text>
+                        <Text>${costDetails.weeklyCost.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                        <Text>5% Platform Fee:</Text>
+                        <Text>${costDetails.platformFee.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.summaryTotal}>
+                        <Text style={styles.summaryTotalLabel}>Total Weekly Est.:</Text>
+                        <Text style={styles.summaryTotalValue}>${costDetails.totalWeekly.toFixed(2)}</Text>
+                    </View>
+                </View>
+
+                <TouchableOpacity style={[styles.submitButton, !isValid && styles.submitButtonDisabled]} onPress={handleSubmit(onSubmit)} disabled={!isValid || isSubmitting}>
+                    {isSubmitting ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.submitButtonText}>Post Job</Text>}
+                </TouchableOpacity>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9F9FB' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9F9FB' },
-  scrollContainer: { paddingHorizontal: 15, paddingBottom: 100 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 4},
-  title: { fontSize: 28, fontWeight: 'bold', color: Colors.primary },
-  subtitle: { fontSize: 16, color: Colors.textSecondary, marginBottom: 20 },
-  closeButton: { padding: 8 },
-  section: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginBottom: 15 },
-  fieldContainer: { marginBottom: 15 },
-  label: { fontSize: 14, fontWeight: '500', color: Colors.text, marginBottom: 8 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: 'transparent', minHeight: 48 },
-  inputError: { borderColor: Colors.danger },
-  textInput: { flex: 1, fontSize: 16, color: Colors.text, marginLeft: 10 },
-  textArea: { height: 120, textAlignVertical: 'top', paddingTop: 12 },
-  errorText: { color: Colors.danger, fontSize: 12, marginTop: 4, marginLeft: 10 },
-  timePayGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridItem: { width: '48%' },
-  footer: { flexDirection: 'row', padding: 15, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6', alignItems: 'center' },
-  publishButton: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginLeft: 10 },
-  publishButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  deleteButton: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.lightGray },
+    container: {
+        flex: 1,
+        backgroundColor: Colors.white,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.lightGray,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.primary,
+    },
+    closeButton: {
+        padding: 5,
+    },
+    formContainer: {
+        padding: 20,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Colors.darkGray,
+        marginTop: 20,
+        marginBottom: 10,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: Colors.gray,
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 16,
+        marginBottom: 10,
+    },
+    textArea: {
+        height: 120,
+        textAlignVertical: 'top',
+    },
+    errorText: {
+        color: Colors.danger,
+        marginBottom: 10,
+    },
+    payRateContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.gray,
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 10,
+    },
+    currencySymbol: {
+        fontSize: 16,
+        marginRight: 5,
+    },
+    payInput: {
+        flex: 1,
+        fontSize: 16,
+    },
+    payRateLabel: {
+        fontSize: 16,
+    },
+    costSummary: {
+        marginTop: 20,
+        padding: 15,
+        backgroundColor: Colors.lightGray,
+        borderRadius: 8,
+    },
+    summaryTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 5,
+    },
+    summaryTotal: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: Colors.gray,
+        paddingTop: 10,
+    },
+    summaryTotalLabel: {
+        fontWeight: 'bold',
+    },
+    summaryTotalValue: {
+        fontWeight: 'bold',
+        color: Colors.primary
+    },
+    submitButton: {
+        backgroundColor: Colors.primary,
+        padding: 15,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 30,
+        marginBottom: 50
+    },
+    submitButtonDisabled: {
+        backgroundColor: Colors.gray,
+    },
+    submitButtonText: {
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
 });
 
 export default PostJobScreen;

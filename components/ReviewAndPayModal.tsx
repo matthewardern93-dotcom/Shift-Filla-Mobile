@@ -1,11 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Controller, FormProvider, useForm } from 'react-hook-form';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { TextInput } from 'react-native-gesture-handler';
+import React, { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
-import { Shift } from '../../types';
+import { Shift } from '../types';
 import Button from './Button';
 import PaymentShiftCostSummary from './PaymentShiftCostSummary';
 import StarRating from './StarRating';
@@ -18,27 +17,21 @@ const formSchema = z.object({
   comment: z.string().optional(),
 });
 
-// The shift object passed from the dashboard may have these calculated fields
-interface CalculatedShiftDetails {
+interface ReviewAndPayModalProps {
+  visible: boolean;
+  onClose: () => void;
+  shiftDetails?: Shift & {
     totalHours?: number;
     basePay?: number;
     serviceFee?: number;
     totalCost?: number;
-}
-
-interface ReviewAndPayModalProps {
-  visible: boolean;
-  onClose: () => void;
-  shiftDetails?: Shift & CalculatedShiftDetails;
+  };
 }
 
 const ReviewAndPayModal: React.FC<ReviewAndPayModalProps> = ({ visible, onClose, shiftDetails }) => {
   const [isEditingHours, setIsEditingHours] = useState(false);
-  const [adjustedStartTime, setAdjustedStartTime] = useState(shiftDetails?.startTime || new Date());
-  const [adjustedFinishTime, setAdjustedFinishTime] = useState(shiftDetails?.endTime || new Date());
-  const [adjustedBreakDuration, setAdjustedBreakDuration] = useState(shiftDetails?.breakDuration || 0);
   const [adjustedTotalHours, setAdjustedTotalHours] = useState(shiftDetails?.totalHours || 0);
-
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,66 +40,41 @@ const ReviewAndPayModal: React.FC<ReviewAndPayModalProps> = ({ visible, onClose,
     },
   });
   
-  const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = form;
-
-  useEffect(() => {
-    if (shiftDetails) {
-        setAdjustedStartTime(shiftDetails.startTime);
-        setAdjustedFinishTime(shiftDetails.endTime);
-        setAdjustedBreakDuration(shiftDetails.breakDuration || 0);
-        setAdjustedTotalHours(shiftDetails.totalHours || 0)
-        reset({ rating: 0, comment: '' });
-        setIsEditingHours(false);
-    }
-  }, [shiftDetails, reset]);
-
-  const handleTimeAdjustment = useCallback(({ startTime, finishTime, breakDuration, totalHours }: { startTime: Date; finishTime: Date; breakDuration: number; totalHours: number }) => {
-    setAdjustedStartTime(startTime);
-    setAdjustedFinishTime(finishTime);
-    setAdjustedBreakDuration(breakDuration);
-    setAdjustedTotalHours(totalHours);
-  }, []);
-
-  const adjustedCostDetails = useMemo(() => {
-    if (!shiftDetails) return null;
-    
-    const basePay = adjustedTotalHours * shiftDetails.pay;
-    const serviceFee = basePay * 0.12; 
-    const totalCost = basePay + serviceFee;
-    
-    return {
-      ...shiftDetails,
-      date: shiftDetails.startTime, 
-      startTime: adjustedStartTime,
-      endTime: adjustedFinishTime, // Ensure this is passed as endTime
-      breakDuration: adjustedBreakDuration,
-      totalHours: adjustedTotalHours,
-      basePay,
-      serviceFee,
-      totalCost,
-    };
-  }, [adjustedStartTime, adjustedFinishTime, adjustedBreakDuration, adjustedTotalHours, shiftDetails]);
+  const { control, handleSubmit, formState: { errors, isSubmitting } } = form;
 
   const handleConfirmAndPay = (values: z.infer<typeof formSchema>) => {
     // TODO: Implement Stripe Connect API integration here.
-    console.log("Payment processing bypassed for now.");
+    console.log("Payment processing bypassed for now. Data:", values);
     onClose();
   };
   
   if (!shiftDetails) return null;
+
+  const { pay } = shiftDetails;
+
+  const adjustedCostDetails = {
+    ...shiftDetails,
+    date: shiftDetails.startTime, 
+    startTime: shiftDetails.startTime,
+    endTime: shiftDetails.endTime, 
+    breakDuration: shiftDetails.breakDuration,
+    totalHours: adjustedTotalHours,
+    basePay: adjustedTotalHours * pay,
+    serviceFee: adjustedTotalHours * pay * 0.12,
+    totalCost: adjustedTotalHours * pay * 1.12,
+  };
 
   return (
     <Modal
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={() => {}}
+      onRequestClose={onClose}
       presentationStyle="overFullScreen"
       hardwareAccelerated
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <FormProvider {...form}>
             <ScrollView 
               style={styles.container} 
               contentContainerStyle={styles.contentContainer} 
@@ -117,11 +85,11 @@ const ReviewAndPayModal: React.FC<ReviewAndPayModalProps> = ({ visible, onClose,
               <Text style={styles.header}>Review & Pay</Text>
               <Text style={styles.subHeader}>Review the shift details and submit payment to the worker.</Text>
 
-                {shiftDetails.worker && (
+                {shiftDetails.assignedWorker && (
                     <View style={styles.workerInfoContainer}>
-                        <Image source={{ uri: shiftDetails.worker.profilePictureUrl }} style={styles.workerImage} />
+                        <Image source={{ uri: shiftDetails.assignedWorker.avatarUrl }} style={styles.workerImage} />
                         <View>
-                            <Text style={styles.workerName}>{shiftDetails.worker.firstName} {shiftDetails.worker.lastName}</Text>
+                            <Text style={styles.workerName}>{shiftDetails.assignedWorker.name}</Text>
                             <Text style={styles.shiftRole}>Completed: {shiftDetails.role}</Text>
                         </View>
                     </View>
@@ -159,11 +127,11 @@ const ReviewAndPayModal: React.FC<ReviewAndPayModalProps> = ({ visible, onClose,
               {isEditingHours ? (
                   <View style={styles.card}>
                      <TimePayAdjuster 
-                        initialStartTime={adjustedStartTime}
-                        initialFinishTime={adjustedFinishTime}
-                        initialBreakDuration={adjustedBreakDuration}
+                        initialStartTime={shiftDetails.startTime}
+                        initialFinishTime={shiftDetails.endTime}
+                        initialBreakDuration={shiftDetails.breakDuration || 0}
                         hourlyRate={shiftDetails.pay} 
-                        onAdjust={handleTimeAdjustment}
+                        setAdjustedTotalHours={setAdjustedTotalHours}
                       />
                   </View>
               ) : (
@@ -178,7 +146,6 @@ const ReviewAndPayModal: React.FC<ReviewAndPayModalProps> = ({ visible, onClose,
               </View>
 
             </ScrollView>
-          </FormProvider>
         </View>
       </View>
     </Modal>
@@ -262,7 +229,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
   },
-  buttonRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20, columnGap: 10 },
+  buttonRow: { flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 20,
+    columnGap: 10
+  },
   errorText: { color: Colors.danger, fontSize: 12, marginTop: -10, marginBottom: 10, textAlign: 'center'},
 });
 

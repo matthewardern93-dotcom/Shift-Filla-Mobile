@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { Text, View } from 'react-native';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
 

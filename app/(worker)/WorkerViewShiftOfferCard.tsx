@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView, Image, Linking, Platform } from 'react-native';
+import { useState, useEffect, ReactNode, ReactElement } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Image, Linking, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { format, differenceInHours } from 'date-fns';
 import { Shift } from '../../types';
@@ -10,7 +10,15 @@ import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplat
 import { getDistance } from 'geolib';
 import { useLocation } from '../../hooks/useLocation';
 
-const DetailRow = ({ icon, label, value, onPress }) => (
+// Step 1: Fix Component Prop Types
+interface DetailRowProps {
+    icon: ReactElement;
+    label: string;
+    value: string;
+    onPress?: () => void;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ icon, label, value, onPress }) => (
     <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.detailRow}>
         <View style={styles.detailLabelContainer}>
             {icon}
@@ -20,7 +28,13 @@ const DetailRow = ({ icon, label, value, onPress }) => (
     </TouchableOpacity>
 );
 
-const Section = ({ title, children, icon }) => (
+interface SectionProps {
+    title: string;
+    children: ReactNode;
+    icon: ReactElement;
+}
+
+const Section: React.FC<SectionProps> = ({ title, children, icon }) => (
     <View style={styles.section}>
         <View style={styles.sectionHeader}>
             {icon}
@@ -45,19 +59,20 @@ const WorkerViewShiftOfferCard = () => {
       shift = JSON.parse(params.shift as string);
     }
   } catch (e) {
-    console.error("Failed to parse params", e);
+    console.error("Failed to parse shift params", e);
   }
 
+  // Step 2 & 3: Corrected Data Structures and Logic
   useEffect(() => {
-    if (userLocation && shift?.venue?.location?.latitude && shift?.venue?.location?.longitude) {
+    if (userLocation && shift?.coordinates) {
         const distanceInMeters = getDistance(
             { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude },
-            { latitude: shift.venue.location.latitude, longitude: shift.venue.location.longitude }
+            { latitude: shift.coordinates.lat, longitude: shift.coordinates.lng }
         );
         const distanceInKm = distanceInMeters / 1000;
-        setDistance(`${distanceInKm.toFixed(1)} km away`);
+        setTimeout(() => setDistance(`${distanceInKm.toFixed(1)} km away`), 0);
     }
-  }, [userLocation, shift?.venue?.location]);
+  }, [userLocation, shift?.coordinates]);
 
   if (!shift) {
     Alert.alert("Error", "Shift data not found.", [{ text: "OK", onPress: () => router.back() }]);
@@ -70,38 +85,35 @@ const WorkerViewShiftOfferCard = () => {
     );
   }
 
+  // Step 3: Fix Data Handling - incoming dates are strings from JSON
   const startTime = new Date(shift.startTime);
   const endTime = new Date(shift.endTime);
   const duration = differenceInHours(endTime, startTime);
-  const totalPay = (duration * shift.payRate).toFixed(2);
-  const locationString = shift.venue?.location ? `${shift.venue.location.street}, ${shift.venue.location.city}` : 'Not specified';
+  const totalPay = (duration * shift.pay).toFixed(2); // Use correct 'pay' property
+  const locationString = shift.location || 'Not specified'; // Use correct 'location' property
 
+  // Step 2 & 3: Corrected Maps Logic
   const openInMaps = () => {
-    if (!shift.venue?.location) return;
-
-    const { street, city, latitude, longitude } = shift.venue.location;
-    const address = `${street}, ${city}`;
-    
+    const { coordinates, location } = shift!;
+    const encodedLocation = encodeURIComponent(location);
     let url = '';
+
     if (Platform.OS === 'ios') {
-      url = latitude && longitude 
-        ? `http://maps.apple.com/?ll=${latitude},${longitude}&q=${encodeURIComponent(address)}`
-        : `http://maps.apple.com/?q=${encodeURIComponent(address)}`;
+      url = coordinates 
+        ? `http://maps.apple.com/?ll=${coordinates.lat},${coordinates.lng}&q=${encodedLocation}`
+        : `http://maps.apple.com/?q=${encodedLocation}`;
     } else { 
-      url = latitude && longitude
-        ? `geo:${latitude},${longitude}?q=${encodeURIComponent(address)}`
-        : `geo:0,0?q=${encodeURIComponent(address)}`;
+      url = coordinates
+        ? `geo:${coordinates.lat},${coordinates.lng}?q=${encodedLocation}`
+        : `geo:0,0?q=${encodedLocation}`;
     }
     
     Linking.canOpenURL(url)
       .then(supported => {
-        if (supported) {
-          Linking.openURL(url);
-        } else {
-          Alert.alert("Error", "Could not open map application.");
-        }
+        if (supported) Linking.openURL(url);
+        else Alert.alert("Error", "Could not open map application.");
       })
-      .catch(err => console.error("An error occurred", err));
+      .catch(err => console.error("An error occurred opening map", err));
   };
 
   const handleAccept = () => {
@@ -111,7 +123,7 @@ const WorkerViewShiftOfferCard = () => {
         [
             { text: "Cancel", style: "cancel" },
             { text: "Yes, Accept", onPress: () => {
-                console.log(`Accepted shift ${shift.id}`);
+                console.log(`Accepted shift ${shift!.id}`);
                 router.back();
             } }
         ]
@@ -125,7 +137,7 @@ const WorkerViewShiftOfferCard = () => {
         [
             { text: "Cancel", style: "cancel" },
             { text: "Yes, Decline", onPress: () => {
-                console.log(`Declined shift ${shift.id}`);
+                console.log(`Declined shift ${shift!.id}`);
                 router.back();
             } }
         ]
@@ -134,18 +146,22 @@ const WorkerViewShiftOfferCard = () => {
 
   return (
     <WorkerScreenTemplate>
-      <Stack.Screen options={{ title: "Shift Offer", headerBackTitle: 'Back' }} />
+      {/* Step 4: Fix React/Expo API Errors */}
+      <Stack.Screen options={{ title: "Shift Offer" }} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         <View style={styles.headerInfo}>
             <View>
+                {/* Step 2: Use correct properties */}
                 <Text style={styles.roleTitle}>{shift.role}</Text>
-                <Text style={styles.venueName}>{shift.venue.name}</Text>
+                <Text style={styles.venueName}>{shift.venueName}</Text>
             </View>
             <TouchableOpacity 
-                onPress={() => router.push({ pathname: '/(worker)/WorkerViewVenueProfile', params: { venue: JSON.stringify(shift.venue) } })} 
+                // Step 2: Pass correct venueId param
+                onPress={() => router.push({ pathname: '/(worker)/WorkerViewVenueProfile', params: { venueId: shift!.businessId } })} 
                 style={styles.venueProfileContainer}>
-                <Image source={{ uri: shift.venue.profilePictureUrl || 'https://via.placeholder.com/80' }} style={styles.venueImage} />
+                {/* Step 2: Use correct logo URL property */}
+                <Image source={{ uri: shift.venueLogoUrl || 'https://via.placeholder.com/80' }} style={styles.venueImage} />
                 <Text style={styles.viewProfileText}>View Profile</Text>
             </TouchableOpacity>
         </View>
@@ -170,7 +186,8 @@ const WorkerViewShiftOfferCard = () => {
             <DetailRow 
                 icon={<DollarSign size={20} color={Colors.primary}/>} 
                 label="Pay Rate" 
-                value={`$${shift.payRate.toFixed(2)} / hour`} 
+                // Step 3: Use correct 'pay' property
+                value={`$${shift.pay.toFixed(2)} / hour`} 
             />
             <View style={styles.totalPayRow}>
                  <Text style={styles.totalPayLabel}>Estimated Total Pay</Text>
@@ -215,10 +232,6 @@ const WorkerViewShiftOfferCard = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scrollContent: { padding: 16, paddingBottom: 100 },
     headerInfo: {
@@ -235,6 +248,7 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         marginBottom: 8,
+        backgroundColor: Colors.lightGray,
     },
     viewProfileText: {
         fontSize: 12,
@@ -245,6 +259,7 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         color: Colors.text,
+        flexShrink: 1,
     },
     venueName: {
         fontSize: 18,
@@ -354,7 +369,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        paddingBottom: 25, // Extra padding for home bar
+        paddingBottom: 25,
         backgroundColor: '#fff',
         borderTopWidth: 1,
         borderTopColor: Colors.lightGray,

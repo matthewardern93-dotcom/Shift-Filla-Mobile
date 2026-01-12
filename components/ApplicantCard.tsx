@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Colors } from '../constants/theme';
+import { Colors } from '../constants/colors';
 import { WorkerProfile } from '../types';
 import { useRouter } from 'expo-router';
 
@@ -11,20 +11,24 @@ interface ApplicantCardProps {
 
 const ApplicantCard: React.FC<ApplicantCardProps> = ({ applicant }) => {
   const router = useRouter();
-  const { name, avatarUrl, id } = applicant;
+  const { firstName, lastName, profilePictureUrl, uid } = applicant;
+  const fullName = `${firstName} ${lastName}`.trim();
 
   const handleViewProfile = () => {
-    router.push({ 
-        pathname: '/(venue)/WorkerProfile', 
-        params: { workerId: id } 
+    router.push({
+        pathname: '/(venue)/VenueApplicantProfile', 
+        params: { workerId: uid }
     });
   };
 
   return (
     <View style={styles.card}>
-      <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+      {profilePictureUrl ? 
+        <Image source={{ uri: profilePictureUrl }} style={styles.avatar} /> :
+        <View style={[styles.avatar, styles.avatarPlaceholder]} />
+      }
       <View style={styles.applicantInfo}>
-        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.name}>{fullName}</Text>
       </View>
       <TouchableOpacity style={styles.button} onPress={handleViewProfile}>
         <Text style={styles.buttonText}>View Profile</Text>
@@ -50,6 +54,10 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 16,
+    backgroundColor: Colors.lightGray, // Placeholder color
+  },
+  avatarPlaceholder: {
+    // Additional styling for placeholder if needed
   },
   applicantInfo: {
     flex: 1,

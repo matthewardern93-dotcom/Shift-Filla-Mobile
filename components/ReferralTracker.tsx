@@ -20,7 +20,7 @@ const ReferralTracker: React.FC<ReferralTrackerProps> = ({ referralCode, referre
 
   const shareLink = () => {
     Share.share({
-      message: `Here\'s my sign up link to Shift Filla, the easiest way to Filla Shift. ${referralLink}`,
+      message: `Here's my sign up link to Shift Filla, the easiest way to Filla Shift. ${referralLink}`,
     });
   };
 
@@ -48,7 +48,7 @@ const ReferralTracker: React.FC<ReferralTrackerProps> = ({ referralCode, referre
       <Text style={styles.yourReferralsTitle}>Your Referrals</Text>
 
       {referredVenues.length === 0 ? (
-        <Text style={styles.noReferralsText}>You haven\'t referred any venues yet.</Text>
+        <Text style={styles.noReferralsText}>You haven&apos;t referred any venues yet.</Text>
       ) : (
         <View>
           {referredVenues.map(venue => (

@@ -1,7 +1,6 @@
 
 import { create } from 'zustand';
-import { firestore } from '../../services/firebase'; 
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import firestore from '@react-native-firebase/firestore';
 import { Conversation } from '../../types';
 
 interface ChatState {
@@ -18,7 +17,7 @@ interface ChatActions {
 const initialState: ChatState = {
   hasUnreadMessages: false,
   isSubscribed: false,
-  unsubscribe: () => {},
+  unsubscribe: () => { /* intentionally empty */ },
 };
 
 export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
@@ -30,17 +29,16 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       return;
     }
 
-    const q = query(
-      collection(firestore, 'conversations'), 
-      where('participants', 'array-contains', userId)
-    );
+    const q = firestore()
+      .collection('conversations') 
+      .where('participants', 'array-contains', userId);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = q.onSnapshot((snapshot) => {
       const conversations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Conversation[];
       
       // Check if any conversation has a lastMessage that is not read by the current user
       const hasUnread = conversations.some(convo => 
-        convo.lastMessage && !convo.lastMessage.readBy.includes(userId)
+        convo.lastMessage && convo.readBy && !convo.readBy.includes(userId)
       );
 
       set({ hasUnreadMessages: hasUnread });

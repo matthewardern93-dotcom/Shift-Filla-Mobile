@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Dimensions } from 'react-native';
-import { Shift, WorkerProfile } from '../../types';
 import ShiftCard from '../../components/ShiftCard';
 import VenueScreenTemplate from '../../components/templates/VenueScreenTemplate';
 import { Colors } from '../../constants/colors';
 import { Calendar, DateData } from 'react-native-calendars';
+import { MarkedDates } from 'react-native-calendars/src/types';
 import { format } from 'date-fns';
-import { useUserStore } from '../../store/userStore';
-import { useVenueShiftStore } from '../../store/venueShiftStore';
+import { useUserStore } from '../../app/store/userStore';
+import { useVenueShiftStore } from '../../app/store/venueShiftStore';
 
 const tabs = [
   { key: 'unfilled', label: 'Unfilled', statuses: ['posted', 'offered_to_worker'] },
@@ -16,8 +16,6 @@ const tabs = [
   { key: 'completed', label: 'Completed', statuses: ['completed', 'pending_payment', 'pending_worker_review'] },
   { key: 'calendar', label: 'Calendar', statuses: [] },
 ];
-
-type ShiftWithWorker = Shift & { worker?: WorkerProfile };
 
 const VenueRoster = () => {
   const [activeTab, setActiveTab] = useState(tabs[0].key);
@@ -32,7 +30,7 @@ const VenueRoster = () => {
       subscribeToVenueShifts(user.uid);
     }
     return () => cleanup();
-  }, [user?.uid]);
+  }, [user?.uid, subscribeToVenueShifts, cleanup]);
 
   const filteredShifts = useMemo(() => {
     const currentTab = tabs.find(t => t.key === activeTab);
@@ -52,7 +50,7 @@ const VenueRoster = () => {
   };
 
   const markedDates = useMemo(() => {
-    const marks: { [key: string]: any } = {};
+    const marks: MarkedDates = {};
     allShifts.forEach(shift => {
       const date = format(new Date(shift.startTime), 'yyyy-MM-dd');
       if (!marks[date]) {
@@ -97,7 +95,7 @@ const VenueRoster = () => {
           {!isLoading && (
             <FlatList
                 data={selectedDayShifts}
-                renderItem={({ item }) => <ShiftCard shift={item} worker={item.worker} />}
+                renderItem={({ item }) => <ShiftCard item={item} />}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContainer}
                 ListEmptyComponent={<View style={styles.placeholder}><Text>No shifts on this day.</Text></View>}
@@ -114,7 +112,7 @@ const VenueRoster = () => {
     return (
       <FlatList
         data={filteredShifts}
-        renderItem={({ item }) => <ShiftCard shift={item} worker={item.worker} />}
+        renderItem={({ item }) => <ShiftCard item={item} />}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />

@@ -1,267 +1,263 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, TextInput, SafeAreaView, Modal, FlatList, TouchableWithoutFeedback, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Calendar as CalendarIcon, Clock, DollarSign, Shirt, MapPin, Briefcase } from 'lucide-react-native';
+import * as z from 'zod';
 import { Colors } from '../../constants/colors';
-import { VenueProfile } from '../../types';
+import { Briefcase, MapPin, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
+import { format, differenceInMinutes, parseISO } from 'date-fns';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { auth, db } from '../../services/firebase';
+import functions from '@react-native-firebase/functions';
+import firestore from '@react-native-firebase/firestore';
+import { CustomPicker } from '../../components/CustomPicker';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { Calendar, DateData } from 'react-native-calendars';
+import { WorkerProfile, VenueProfile, Shift } from '../../types';
+import { Image } from 'expo-image';
 import { skillsList } from '../../constants/Skills';
-import { payRateOptions } from '../../constants/Pay-Rate';
-import { getRoleRequirements } from '../../constants/Shift-Requirements';
-import { format, parse, differenceInMinutes, addMinutes, combineDateAndTime } from 'date-fns';
-import { CustomPicker } from '../../components/Picker';
-import MultiSelect from '../../components/multi-select';
-import { Calendar } from 'react-native-calendars';
-import ShiftCostSummary from '../../components/ShiftCostSummary';
-import { useUserStore } from '../../store/userStore'; // Import user store
-import { functions } from '../../services/firebase'; // Import functions
-import { httpsCallable } from 'firebase/functions'; // Import httpsCallable
-
-const timeRegex = /^([01]?[0-9]|2[0-3]):(00|15|30|45)$/;
-const timeRegexError = "Invalid time. Use HH:mm format in 15-minute intervals (e.g., 09:00, 09:15).";
 
 const shiftSchema = z.object({
-    role: z.string().min(1, "Role is required"),
-    location: z.string().min(1, "Location is required"),
-    singleDate: z.date(),
-    singleStartTime: z.string().regex(timeRegex, timeRegexError),
-    singleEndTime: z.string().regex(timeRegex, timeRegexError),
-    singlePay: z.number().min(0, "Pay rate is required"),
-    singleBreak: z.number().int().min(0).optional(),
-    description: z.string().optional(),
-    uniform: z.string().optional(),
-    requirements: z.array(z.string()).optional(),
+  role: z.string().min(1, 'Role is required'),
+  location: z.string(),
+  singleDate: z.date(),
+  singleStartTime: z.string(),
+  singleEndTime: z.string(),
+  singleBreak: z.number().min(0),
+  payRate: z.number().min(1, 'Pay rate must be greater than 0'),
 });
 
-const generateTimeSlots = () => {
-    const slots = [];
-    let date = new Date();
-    date.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 96; i++) {
-        slots.push(format(date, 'HH:mm'));
-        date = addMinutes(date, 15);
-    }
-    return slots;
-};
+type ShiftFormData = z.infer<typeof shiftSchema>;
 
-const timeSlots = generateTimeSlots();
-
-const FormField = ({ label, icon, children, error, containerStyle }) => (
-  <View style={[styles.fieldContainer, containerStyle]}>
-    {label && <Text style={styles.label}>{label}</Text>}
-    <View style={[styles.inputContainer, error && styles.inputError]}>
-      {icon}
-      {children}
+const FormField = ({ label, icon, children, error }: { label: string, icon: React.ReactNode, children: React.ReactNode, error: any }) => (
+    <View style={styles.fieldContainer}>
+        <Text style={styles.label}>{label}</Text>
+        <View style={[styles.inputContainer, error && styles.inputError]}>
+            {icon}
+            <View style={styles.inputWrapper}>{children}</View>
+        </View>
+        {error && <Text style={styles.errorText}>{error.message}</Text>}
     </View>
-    {error && <Text style={styles.errorText}>{error.message}</Text>}
-  </View>
 );
 
-const WorkerInfoCard = ({ name, profilePictureUrl }) => (
+const WorkerInfoCard = ({ name, profilePictureUrl }: { name: string, profilePictureUrl?: string }) => (
     <View style={styles.workerCard}>
-        <Image source={{ uri: profilePictureUrl || 'https://via.placeholder.com/60' }} style={styles.workerImage} />
-        <View>
-            <Text style={styles.workerCardText}>Directly offering shift to:</Text>
-            <Text style={styles.workerName}>{name || 'Worker Name'}</Text>
+        <Image source={{ uri: profilePictureUrl }} style={styles.workerAvatar} />
+        <Text style={styles.workerName}>{name}</Text>
+    </View>
+);
+
+const ShiftCostSummary = ({ details }: { details: { totalHours: number, cost: number, platformFee: number, total: number } }) => (
+    <View style={styles.costSummaryContainer}>
+        <Text style={styles.summaryTitle}>Shift Cost</Text>
+        <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Hours:</Text>
+            <Text style={styles.summaryValue}>{details.totalHours.toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Cost:</Text>
+            <Text style={styles.summaryValue}>${details.cost.toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Platform Fee:</Text>
+            <Text style={styles.summaryValue}>${details.platformFee.toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryTotal}>
+            <Text style={styles.summaryTotalLabel}>Total:</Text>
+            <Text style={styles.summaryTotalValue}>${details.total.toFixed(2)}</Text>
         </View>
     </View>
 );
 
 const DirectShiftPostScreen = () => {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const { workerId, workerName, workerProfileUrl } = params;
-  const venueProfile = useUserStore(state => state.profile) as VenueProfile;
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pickerConfig, setPickerConfig] = useState({ visible: false, type: null });
+  const { workerId } = useLocalSearchParams();
+  const [worker, setWorker] = useState<WorkerProfile | null>(null);
+  const [isPickerVisible, setPickerVisible] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time' | 'datetime'>('time');
+  const [currentPicker, setCurrentPicker] = useState<keyof ShiftFormData | null>(null);
   const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm({
+  const { control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<ShiftFormData>({
     resolver: zodResolver(shiftSchema),
     defaultValues: {
+        role: '',
+        location: '',
+        singleDate: new Date(),
         singleStartTime: '09:00',
         singleEndTime: '17:00',
-        singleBreak: 30,
-        singlePay: 25,
-        requirements: [],
-        location: venueProfile ? `${venueProfile.address}, ${venueProfile.city}`.trim() : '',
+        singleBreak: 0,
+        payRate: 25,
     },
   });
 
-  const role = watch('role');
-  const watchedValues = watch();
-
-  const calculateShiftDuration = (startTime, endTime, breakMinutes) => {
-      if (!startTime || !endTime || !timeRegex.test(startTime) || !timeRegex.test(endTime)) return 0;
-      const start = parse(startTime, 'HH:mm', new Date());
-      const end = parse(endTime, 'HH:mm', new Date());
-      let diff = (differenceInMinutes(end, start) / 60);
-      if (diff < 0) diff += 24;
-      const breakHours = (breakMinutes || 0) / 60;
-      return Math.max(0, diff - breakHours);
-  };
-
-  const costDetails = useMemo(() => {
-    const SERVICE_FEE_RATE = 0.12;
-    let totalHours = 0;
-    let basePay = 0;
-
-    if(watchedValues.singleDate) {
-        const hours = calculateShiftDuration(watchedValues.singleStartTime, watchedValues.singleEndTime, watchedValues.singleBreak);
-        totalHours = hours;
-        basePay = hours * (watchedValues.singlePay || 0);
+  useEffect(() => {
+    const venueId = auth.currentUser?.uid;
+    
+    async function fetchInitialData() {
+        if (venueId) {
+            const venueRef = db.collection("venues").doc(venueId);
+            const venueSnap = await venueRef.get();
+            if (venueSnap.exists) {
+                const venueData = venueSnap.data() as VenueProfile;
+                setValue('location', venueData.address as string);
+            }
+        }
+        if (typeof workerId === 'string') {
+            const workerRef = db.collection("workers").doc(workerId);
+            const workerSnap = await workerRef.get();
+            if (workerSnap.exists) {
+                setWorker(workerSnap.data() as WorkerProfile);
+            }
+        }
+        setIsLoading(false);
     }
 
-    const serviceFee = basePay * SERVICE_FEE_RATE;
-    const totalCost = basePay + serviceFee;
+    fetchInitialData();
+}, [workerId, setValue]);
 
-    return { totalHours, basePay, serviceFee, totalCost };
-  }, [watchedValues]);
+  const watchFields = watch(['singleDate', 'singleStartTime', 'singleEndTime', 'singleBreak', 'payRate']);
 
-  const onSingleDayPress = (day) => {
-      setValue('singleDate', new Date(day.timestamp + (new Date().getTimezoneOffset() * 60000)));
-      setCalendarModalVisible(false);
-  }
+  const costDetails = useMemo(() => {
+    const [date, startTime, endTime, breakMinutes, payRate] = watchFields;
+    const start = parseISO(`${format(date, 'yyyy-MM-dd')}T${startTime}`);
+    const end = parseISO(`${format(date, 'yyyy-MM-dd')}T${endTime}`);
+    const totalMinutes = differenceInMinutes(end, start) - breakMinutes;
+    const totalHours = totalMinutes > 0 ? totalMinutes / 60 : 0;
+    const cost = totalHours * payRate;
+    const platformFee = cost * 0.10; // 10% platform fee
+    const total = cost + platformFee;
+    return { totalHours, cost, platformFee, total };
+  }, [watchFields]);
 
-  const showPicker = (type) => setPickerConfig({ visible: true, type });
-  const hidePicker = () => setPickerConfig({ visible: false, type: null });
-
-  const handleTimeSelect = (time) => {
-    const { type } = pickerConfig;
-    if (!type) return;
-    setValue(type, time, { shouldValidate: true });
-    hidePicker();
+  const showPicker = (picker: keyof ShiftFormData) => {
+    setCurrentPicker(picker);
+    setPickerMode(picker.includes('Date') ? 'date' : 'time');
+    setPickerVisible(true);
   };
-  
-  const onSubmit = async (data) => {
+
+  const handleConfirm = (selectedDate: Date) => {
+    setPickerVisible(false);
+    if (currentPicker && selectedDate) {
+      if (pickerMode === 'date') {
+        setValue(currentPicker as any, selectedDate);
+      }
+       else {
+        setValue(currentPicker as any, format(selectedDate, 'HH:mm'));
+      }
+    }
+  };
+
+  const onDayPress = (day: DateData) => {
+    setValue('singleDate', new Date(day.timestamp));
+    setCalendarModalVisible(false);
+  };
+
+  const onSubmit = async (data: ShiftFormData) => {
+    const venueId = auth.currentUser?.uid;
+    if (!venueId || typeof workerId !== 'string') {
+      Alert.alert('Error', 'Authentication or worker information is missing.');
+      return;
+    }
     setIsSubmitting(true);
     try {
-        const manageShifts = httpsCallable(functions, 'manageShifts');
-        
-        const startTime = combineDateAndTime(data.singleDate, data.singleStartTime);
-        const endTime = combineDateAndTime(data.singleDate, data.singleEndTime);
-
-        const shiftDetails = {
+        const manageShifts = functions().httpsCallable('manageShifts');
+        const shiftDetails: Partial<Shift> = {
             role: data.role,
             location: data.location,
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
-            pay: data.singlePay,
+            startTime: firestore.Timestamp.fromDate(new Date(`${format(data.singleDate, 'yyyy-MM-dd')}T${data.singleStartTime}`)),
+            endTime: firestore.Timestamp.fromDate(new Date(`${format(data.singleDate, 'yyyy-MM-dd')}T${data.singleEndTime}`)),
+            pay: data.payRate,
             breakDuration: data.singleBreak,
-            description: data.description,
-            uniform: data.uniform,
-            requirements: data.requirements,
-            // Any other optional fields from your form
+            status: 'offered_to_worker',
+            businessId: venueId,
+            workerId: workerId,
         };
 
-        await manageShifts({
-            action: 'directOffer',
-            workerId: workerId,
-            shiftDetails: shiftDetails,
-        });
-
-      Alert.alert("Shift Offer Sent", `Your shift offer has been sent to ${workerName}.`, [{ text: "OK", onPress: () => router.back() }]);
+        await manageShifts({ action: 'directOffer', workerId, shiftDetails });
+        Alert.alert('Success', 'Shift offer has been sent directly to the worker.');
+        router.push('/(venue)');
     } catch (error) {
-        console.error("Error sending direct offer:", error);
-        Alert.alert("Offer Failed", error.message || "An unexpected error occurred.");
+        console.error("Error creating direct shift:", error);
+        Alert.alert('Error', 'There was an issue sending the shift offer. Please try again.');
     } finally {
         setIsSubmitting(false);
     }
   };
 
+  if (isLoading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.primary} /></View>;
+  }
   return (
     <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
             <Text style={styles.title}>Direct Shift Offer</Text>
-            
-            <WorkerInfoCard name={workerName} profilePictureUrl={workerProfileUrl} />
-
+            {worker && <WorkerInfoCard name={worker.firstName} profilePictureUrl={worker.profilePictureUrl} />}
             <Text style={styles.subtitle}>Fill out the details below for the shift offer.</Text>
-
             <View style={styles.section}>
               <FormField label="Role" icon={<Briefcase size={20} color={Colors.gray} />} error={errors.role}><Controller name="role" control={control} render={({ field: { onChange, value } }) => (<CustomPicker placeholder="Select a role" options={skillsList.map(s => ({ label: s.label, value: s.id }))} selectedValue={value} onValueChange={onChange} />)} /></FormField>
               <FormField label="Location" icon={<MapPin size={20} color={Colors.gray} />} error={errors.location}><TextInput style={styles.textInput} value={getValues('location')} editable={false} /></FormField>
             </View>
-
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Shift Details</Text>
-              <Controller control={control} name='singleDate' render={({ field: { value }}) => (<TouchableOpacity onPress={() => setCalendarModalVisible(true)} style={{width: '100%', marginBottom: 15}}><FormField label="Date" icon={<CalendarIcon size={20} color={Colors.gray} />} error={errors.singleDate}><Text style={[styles.textInput, !value && { color: Colors.gray }]}>{value ? format(value, 'PPP') : 'Select a date'}</Text></FormField></TouchableOpacity>)}/>
+              <Controller control={control} name='singleDate' render={({ field: { value }}) => (<TouchableOpacity onPress={() => setCalendarModalVisible(true)} style={styles.fullWidth}><FormField label="Date" icon={<CalendarIcon size={20} color={Colors.gray} />} error={errors.singleDate}><Text style={[styles.textInput, !value && styles.placeholderText]}>{value ? format(value, 'PPP') : 'Select a date'}</Text></FormField></TouchableOpacity>)}/>
               <View style={styles.timePayGrid}>
-                <Controller control={control} name='singleStartTime' render={({ field }) => (<TouchableOpacity onPress={() => showPicker('singleStartTime')} style={styles.gridItem}><FormField label="Start Time" icon={<Clock size={20} color={Colors.gray} />} error={errors.singleStartTime}><Text style={styles.textInput}>{field.value}</Text></FormField></TouchableOpacity>)} />
-                <Controller control={control} name='singleEndTime' render={({ field }) => (<TouchableOpacity onPress={() => showPicker('singleEndTime')} style={styles.gridItem}><FormField label="End Time" icon={<Clock size={20} color={Colors.gray} />} error={errors.singleEndTime}><Text style={styles.textInput}>{field.value}</Text></FormField></TouchableOpacity>)} />
+                <Controller control={control} name='singleStartTime' render={({ field }) => (<TouchableOpacity onPress={() => showPicker('singleStartTime' as any)} style={styles.gridItem}><FormField label="Start Time" icon={<Clock size={20} color={Colors.gray} />} error={errors.singleStartTime}><Text style={styles.textInput}>{field.value}</Text></FormField></TouchableOpacity>)} />
+                <Controller control={control} name='singleEndTime' render={({ field }) => (<TouchableOpacity onPress={() => showPicker('singleEndTime' as any)} style={styles.gridItem}><FormField label="End Time" icon={<Clock size={20} color={Colors.gray} />} error={errors.singleEndTime}><Text style={styles.textInput}>{field.value}</Text></FormField></TouchableOpacity>)} />
                 <Controller control={control} name='singleBreak' render={({ field: { onChange, value } }) => (<View style={styles.gridItem}><FormField label="Unpaid Break" icon={<Clock size={20} color={Colors.gray} />} error={errors.singleBreak}><TextInput style={styles.textInput} keyboardType="number-pad" value={String(value)} onChangeText={(val) => onChange(Number(val) || 0)} /><Text style={styles.units}>min</Text></FormField></View>)} />
-                <Controller control={control} name='singlePay' render={({ field: { onChange, value } }) => (<View style={styles.gridItem}><FormField label="Pay per hour" icon={<DollarSign size={20} color={Colors.gray} />} error={errors.singlePay}><CustomPicker placeholder="Rate" options={payRateOptions} selectedValue={value} onValueChange={onChange} /></FormField></View>)} />
+                <Controller control={control} name='payRate' render={({ field: { onChange, value } }) => (<View style={styles.gridItem}><FormField label="Pay Rate" icon={<Text style={styles.currencySymbol}>$</Text>} error={errors.payRate}><TextInput style={styles.textInput} keyboardType="decimal-pad" value={String(value)} onChangeText={(val) => onChange(Number(val) || 0)} /><Text style={styles.units}>/hr</Text></FormField></View>)} />
               </View>
             </View>
-            
             {(costDetails.totalHours > 0) && <View style={styles.section}><ShiftCostSummary details={costDetails} /></View>}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Additional Details</Text>
-              <FormField label="Job Description" error={errors.description} containerStyle={{marginBottom: 0}}><Controller name="description" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput style={[styles.textInput, styles.textArea]} onBlur={onBlur} onChangeText={onChange} value={value} multiline placeholder="e.g., Key responsibilities..." />)} /></FormField>
-              <FormField label="Uniform" icon={<Shirt size={20} color={Colors.gray} />} error={errors.uniform}><Controller name="uniform" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput style={styles.textInput} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="e.g., Black shirt, black pants" />)} /></FormField>
-              <FormField label="Requirements" error={errors.requirements} containerStyle={{marginBottom: 0}}><Controller name="requirements" control={control} render={({ field: { onChange, value } }) => (<MultiSelect options={getRoleRequirements(role, venueProfile?.posSystem)} selected={value} onChange={onChange} placeholder="Select requirements..."/>)} /></FormField>
-            </View>
-
-            <TouchableOpacity style={styles.publishButton} onPress={handleSubmit(onSubmit)} disabled={isSubmitting}>
-              {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.publishButtonText}>Send Direct Offer</Text>}
+            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit(onSubmit)} disabled={isSubmitting}>
+              {isSubmitting ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.submitButtonText}>Send Direct Offer</Text>}
             </TouchableOpacity>
         </ScrollView>
-
-        <Modal transparent={true} visible={calendarModalVisible} animationType="fade" onRequestClose={() => setCalendarModalVisible(false)}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPressOut={() => setCalendarModalVisible(false)}>
-                <View style={styles.calendarModalContent}>
-                    <Calendar onDayPress={onSingleDayPress} minDate={format(new Date(), 'yyyy-MM-dd')} theme={{ todayTextColor: Colors.primary, arrowColor: Colors.primary, selectedDayBackgroundColor: Colors.primary, selectedDayTextColor: '#ffffff' }}/>
-                </View>
-            </TouchableOpacity>
-        </Modal>
-
-        <Modal transparent={true} visible={pickerConfig.visible} animationType="fade" onRequestClose={hidePicker}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPressOut={hidePicker}>
-                <TouchableWithoutFeedback>
-                    <View style={styles.timePickerModalContent}>
-                        <FlatList data={timeSlots} keyExtractor={(item) => item} renderItem={({ item }) => (<TouchableOpacity style={styles.timeSlot} onPress={() => handleTimeSelect(item)}><Text style={styles.timeSlotText}>{item}</Text></TouchableOpacity>)} />
-                    </View>
-                </TouchableWithoutFeedback>
-            </TouchableOpacity>
-        </Modal>
+        <DateTimePickerModal isVisible={isPickerVisible} mode={pickerMode} onConfirm={handleConfirm} onCancel={() => setPickerVisible(false)} />
+        {calendarModalVisible && <View style={styles.modalBackdrop}><View style={styles.calendarContainer}><Calendar onDayPress={onDayPress} minDate={format(new Date(), 'yyyy-MM-dd')} /></View></View>}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9F9FB' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9F9FB' },
-  scrollContainer: { paddingHorizontal: 15, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', color: Colors.primary, marginBottom: 4, marginTop: 20 },
-  subtitle: { fontSize: 16, color: Colors.textSecondary, marginBottom: 20 },
-  section: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginBottom: 15 },
+  safeArea: { flex: 1, backgroundColor: Colors.lightGray },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContainer: { padding: 20, paddingBottom: 100 },
+  title: { fontSize: 28, fontWeight: 'bold', color: Colors.primary, marginBottom: 10 },
+  subtitle: { fontSize: 16, color: Colors.darkGray, marginBottom: 20 },
+  section: { backgroundColor: Colors.white, borderRadius: 10, padding: 15, marginBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
   fieldContainer: { marginBottom: 15 },
-  label: { fontSize: 14, fontWeight: '500', color: Colors.text, marginBottom: 8 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: 'transparent', minHeight: 48 },
+  label: { fontSize: 14, color: Colors.darkGray, marginBottom: 5 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.gray, borderRadius: 8, paddingHorizontal: 10 },
+  inputWrapper: { flex: 1 },
   inputError: { borderColor: Colors.danger },
-  textInput: { flex: 1, fontSize: 16, color: Colors.text, marginLeft: 10 },
-  textArea: { height: 100, textAlignVertical: 'top', paddingTop: 12 },
   errorText: { color: Colors.danger, fontSize: 12, marginTop: 4 },
-  units: { color: Colors.gray, marginRight: 5, fontSize: 14 },
+  textInput: { height: 40, fontSize: 16, color: Colors.text, flex: 1 },
+  placeholderText: { color: Colors.gray },
   timePayGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridItem: { width: '48%’, marginBottom: 15 },
-  publishButton: { backgroundColor: Colors.primary, padding: 15, borderRadius: 12, alignItems: 'center', marginVertical: 20 },
-  publishButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
-  calendarModalContent: { backgroundColor: 'white', borderRadius: 12, padding: 20, width: '90%' },
-  timePickerModalContent: { backgroundColor: 'white', borderRadius: 12, padding: 15, width: '80%', maxHeight: '60%' },
-  timeSlot: { paddingVertical: 15, alignItems: 'center' },
-  timeSlotText: { fontSize: 18, color: Colors.primary },
-  workerCard: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.primary },
-  workerImage: { width: 60, height: 60, borderRadius: 30, marginRight: 15 },
-  workerCardText: { fontSize: 14, color: Colors.textSecondary },
-  workerName: { fontSize: 18, fontWeight: 'bold', color: Colors.text },
+  gridItem: { width: '48%', marginBottom: 15 },
+  units: { position: 'absolute', right: 10, top: 10, color: Colors.gray },
+  currencySymbol: { fontSize: 18, color: Colors.gray, marginRight: 5 },
+  fullWidth: { width: '100%' },
+  submitButton: { backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  submitButtonText: { color: Colors.white, fontSize: 18, fontWeight: 'bold' },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  calendarContainer: { backgroundColor: 'white', borderRadius: 10, padding: 10, width: '90%' },
+  workerCard: { flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: Colors.secondary, borderRadius: 8, marginBottom: 10 },
+  workerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+  workerName: { fontSize: 18, fontWeight: 'bold', color: Colors.primary },
+  costSummaryContainer: { padding: 15, backgroundColor: Colors.lightGray, borderRadius: 8 },
+  summaryTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  summaryLabel: { color: Colors.darkGray },
+  summaryValue: { fontWeight: 'bold' },
+  summaryTotal: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: Colors.gray },
+  summaryTotalLabel: { fontWeight: 'bold', fontSize: 16 },
+  summaryTotalValue: { fontWeight: 'bold', fontSize: 18, color: Colors.primary },
 });
 
 export default DirectShiftPostScreen;

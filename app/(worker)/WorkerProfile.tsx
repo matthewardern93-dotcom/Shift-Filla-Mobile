@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,9 +15,8 @@ import { locationsList } from '../../constants/Cities';
 import { CustomPicker as Picker } from '../../components/Picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useWorkerProfile } from '../../hooks/useWorkerProfile'; // Import the hook
-import { functions, storage } from '../../services/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import functions from '@react-native-firebase/functions';
+import storage from '@react-native-firebase/storage';
 
 // Zod schema for validation
 const profileSchema = z.object({
@@ -24,8 +24,15 @@ const profileSchema = z.object({
   about: z.string().optional(),
 });
 
-const DocumentRow = ({ docName, docType, onUpdate, onView, isLast }) => (
-    <View style={[styles.documentRow, isLast && { borderBottomWidth: 0 }]}>
+interface DocumentRowProps {
+    docName: string | null;
+    docType: string;
+    onUpdate: () => void;
+    onView: () => void;
+}
+
+const DocumentRow = ({ docName, docType, onUpdate, onView }: DocumentRowProps) => (
+    <View style={styles.documentRow}>
         <View>
             <Text style={styles.documentTypeLabel}>{docType}</Text>
             <Text style={styles.documentName}>{docName || 'Not Uploaded'}</Text>
@@ -41,6 +48,12 @@ const DocumentRow = ({ docName, docType, onUpdate, onView, isLast }) => (
     </View>
 );
 
+interface DocState {
+    name: string;
+    uri: string;
+    type: 'new';
+}
+
 const WorkerProfileScreen = () => {
   const { profile, isLoading, error } = useWorkerProfile();
   const [isSaving, setIsSaving] = useState(false);
@@ -50,7 +63,7 @@ const WorkerProfileScreen = () => {
   const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
-  const [documents, setDocuments] = useState<any>({});
+  const [documents, setDocuments] = useState<Record<string, DocState | string>>({});
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(profileSchema),
@@ -59,12 +72,12 @@ const WorkerProfileScreen = () => {
 
   useEffect(() => {
     if (profile) {
-      setValue('about', profile.about || '');
-      setValue('phone', profile.contactNumber || '');
+      setValue('about', profile.description || '');
+      setValue('phone', profile.phone || '');
       setSelectedSkills(profile.skills || []);
       setSelectedCity(profile.city);
       setProfilePictureUri(profile.profilePictureUrl || null);
-      setDocuments(profile.documents || {});
+      setDocuments({});
     }
   }, [profile, setValue]);
 
@@ -95,43 +108,40 @@ const WorkerProfileScreen = () => {
     }
   };
 
-  const viewDocument = (doc) => {
-      Alert.alert('View Document', `This would open the document: ${doc.name || doc}`);
+  const viewDocument = (doc: DocState | string) => {
+      const docName = typeof doc === 'string' ? doc : doc.name;
+      Alert.alert('View Document', `This would open the document: ${docName}`);
   };
 
   const toggleSkill = (skillId: string) => {
     setSelectedSkills(prev => prev.includes(skillId) ? prev.filter(s => s !== skillId) : [...prev, skillId]);
   };
 
-  const onSubmit = async (data: any) => {
-    if (!profile) return;
+  const onSubmit = async (data: {phone: string, about?: string}) => {
+    if (!profile || !profile.id) return;
     setIsSaving(true);
 
     try {
         let profilePictureUrl = profile.profilePictureUrl;
-        // 1. Upload new profile picture if it has changed
         if (profilePictureUri && profilePictureUri !== profile.profilePictureUrl) {
-            const response = await fetch(profilePictureUri);
-            const blob = await response.blob();
-            const storageRef = ref(storage, `worker-profiles/${profile.id}/profilePicture.jpg`);
-            await uploadBytes(storageRef, blob);
-            profilePictureUrl = await getDownloadURL(storageRef);
+            const storageRef = storage().ref(`worker-profiles/${profile.id}/profilePicture.jpg`);
+            await storageRef.putFile(profilePictureUri);
+            profilePictureUrl = await storageRef.getDownloadURL();
         }
 
-        // 2. Upload new documents
-        const uploadedDocuments = { ...profile.documents };
+        const uploadedDocuments: Record<string, string> = {};
         for (const key in documents) {
-            if (documents[key] && documents[key].type === 'new') {
-                const response = await fetch(documents[key].uri);
-                const blob = await response.blob();
-                const docRef = ref(storage, `worker-documents/${profile.id}/${key}-${documents[key].name}`);
-                await uploadBytes(docRef, blob);
-                uploadedDocuments[key] = await getDownloadURL(docRef);
+            const doc = documents[key];
+            if (typeof doc !== 'string' && doc.type === 'new') {
+                const docRef = storage().ref(`worker-documents/${profile.id}/${key}-${doc.name}`);
+                await docRef.putFile(doc.uri);
+                uploadedDocuments[key] = await docRef.getDownloadURL();
+            } else if (typeof doc === 'string') {
+                uploadedDocuments[key] = doc;
             }
         }
 
-        // 3. Call the cloud function to update the profile data
-        const updateProfileFunction = httpsCallable(functions, 'updateWorkerProfile');
+        const updateProfileFunction = functions().httpsCallable('updateWorkerProfile');
         await updateProfileFunction({
             contactNumber: data.phone,
             about: data.about,
@@ -159,7 +169,24 @@ const WorkerProfileScreen = () => {
   }
   
   const documentTypes = [{key: 'resume', label: 'Resume'}, {key: 'id', label: 'ID'}, {key: 'visa', label: 'Visa'}];
-  const skillsMap = skillsList.reduce((acc, skill) => ({ ...acc, [skill.id]: skill.label }), {});
+
+  const getDocName = (doc: DocState | string | undefined): string | null => {
+    if (!doc) return null;
+    if (typeof doc === 'string') {
+        try {
+            const url = new URL(doc);
+            const pathName = url.pathname;
+            const decodedPathName = decodeURIComponent(pathName);
+            const parts = decodedPathName.split('/');
+            const fileNamePart = parts.pop() || '';
+            const name = fileNamePart.split('?')[0];
+            return name.split('-').slice(1).join('-') || name;
+        } catch (e) {
+            return 'Invalid URL';
+        }
+    }
+    return doc.name;
+  }
 
   return (
     <WorkerScreenTemplate>
@@ -172,12 +199,12 @@ const WorkerProfileScreen = () => {
             <View style={styles.statsContainer}>
                 <TouchableOpacity style={styles.statBox} onPress={() => setReviewsModalVisible(true)}>
                     <FontAwesome name="star" size={24} color={Colors.gold} />
-                    <Text style={styles.statValue}>{profile.rating?.average.toFixed(1) || 'N/A'}</Text>
+                    <Text style={styles.statValue}>{profile.avgRating?.toFixed(1) || 'N/A'}</Text>
                     <Text style={styles.statLabel}>Rating</Text>
                 </TouchableOpacity>
                 <View style={styles.statBox}>
                     <Feather name="check-square" size={24} color={Colors.primary} />
-                    <Text style={styles.statValue}>{profile.shiftsCompleted || 0}</Text>
+                    <Text style={styles.statValue}>{profile.completedShifts || 0}</Text>
                     <Text style={styles.statLabel}>Shifts Done</Text>
                 </View>
             </View>
@@ -217,34 +244,33 @@ const WorkerProfileScreen = () => {
                 <View style={styles.pickerContainer}>
                     <Picker
                         options={locationsList}
-                        selectedValue={selectedCity}
-                        onValueChange={(itemValue) => setSelectedCity(itemValue)}
+                        selectedValue={selectedCity || null}
+                        onValueChange={(itemValue) => setSelectedCity(itemValue as string)}
                     />
                 </View>
 
                 <Text style={styles.label}>Documents</Text>
                 <View style={styles.documentsSection}>
-                    {documentTypes.map((doc, index) => (
+                    {documentTypes.map((doc) => (
                         <DocumentRow
                             key={doc.key}
                             docType={doc.label}
-                            docName={documents[doc.key]?.name || (typeof documents[doc.key] === 'string' ? documents[doc.key].split('%').pop().split('?')[0] : null)}
+                            docName={getDocName(documents[doc.key])}
                             onUpdate={() => handleDocumentUpload(doc.label)}
                             onView={() => viewDocument(documents[doc.key])}
-                            isLast={index === documentTypes.length - 1}
                         />
                     ))}
                 </View>
 
                  <TouchableOpacity onPress={handleSubmit(onSubmit)} style={styles.saveButton} disabled={isSaving}>
-                    {isSaving ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveButtonText}>Save Profile</Text>}
+                    {isSaving ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveButtonText}>Save Profile</Text>}\
                 </TouchableOpacity>
             </View>
         </ScrollView>
-        <WorkerReviewsModal 
-            isVisible={isReviewsModalVisible} 
-            onClose={() => setReviewsModalVisible(false)} 
-            reviews={profile.reviews || []} 
+        <WorkerReviewsModal
+            isVisible={isReviewsModalVisible}
+            onClose={() => setReviewsModalVisible(false)}
+            reviews={[]}
         />
     </WorkerScreenTemplate>
   );

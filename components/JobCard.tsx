@@ -1,33 +1,25 @@
 
-import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../constants/colors';
-import { JobData } from '../types';
+import { Job, PermanentJob } from '../types';
 
 interface JobCardProps {
-  job: JobData;
+  job: Job | PermanentJob;
+  onPress: () => void;
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job }) => {
-  const router = useRouter();
-  const { title, payRate, payType, status, id } = job;
+const JobCard: React.FC<JobCardProps> = ({ job, onPress }) => {
+  const { title, salary, type, status } = job;
 
-  const handlePress = () => {
-    router.push({ 
-      pathname: '/(venue)/VenueJobApplicants', 
-      params: { jobId: id } 
-    });
-  };
-
-  const isOpen = status === 'open';
+  const isOpen = status === 'active';
 
   return (
-    <TouchableOpacity onPress={handlePress} style={styles.container}>
+    <TouchableOpacity onPress={onPress} style={styles.container}>
       <View style={styles.cardContent}>
         <View style={styles.jobDetails}>
           <Text style={styles.title}>{title}</Text>
-          <Text style={styles.pay}>${payRate} / {payType}</Text>
+          <Text style={styles.pay}>{salary} ({type})</Text>
         </View>
 
         <View style={styles.rightContent}>
@@ -49,7 +41,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginVertical: 8,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
     shadowRadius: 2,

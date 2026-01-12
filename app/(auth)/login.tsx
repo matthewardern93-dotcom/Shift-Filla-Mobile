@@ -1,8 +1,7 @@
-
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Alert as RNAlert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useUserStore } from '../../store/userStore';
+import { useUserStore } from '../store/userStore';
 import { Colors } from '../../constants/colors';
 
 const LoginScreen = () => {
@@ -10,14 +9,11 @@ const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const router = useRouter();
 
-  // Get state and actions from our central store
   const { signIn, isLoading, error } = useUserStore();
 
-  // This effect runs whenever the 'error' state in the store changes.
   useEffect(() => {
     if (error) {
       RNAlert.alert('Login Failed', error);
-      // Clear the error in the store so it doesn't pop up again unexpectedly
       useUserStore.setState({ error: null });
     }
   }, [error]);
@@ -28,14 +24,8 @@ const LoginScreen = () => {
       return;
     }
     try {
-      // Call the sign-in action from the store.
-      // The store now handles all logic: setting loading state, calling Firebase, 
-      // fetching the profile, and setting the error message on failure.
-      // Our root layout will automatically navigate away on success.
       await signIn(email, password);
-    } catch (e) {
-      // The store's signIn action throws an error on failure, which we catch here.
-      // The useEffect hook above is responsible for showing the user-facing alert.
+    } catch {
       console.log('Component caught login failure.');
     }
   };
@@ -48,8 +38,6 @@ const LoginScreen = () => {
     router.push('/(auth)/forgot-password');
   };
 
-  // The UI below is identical to before.
-  // The `disabled` and `ActivityIndicator` are now powered by the global `isLoading` state.
   return (
     <View style={styles.container}>
       <Image source={require('../../assets/Briefcase (1).png')} style={styles.logo} />
@@ -63,7 +51,7 @@ const LoginScreen = () => {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
-        placeholderTextColor="#000000"
+        placeholderTextColor={Colors.textSecondary} 
       />
       
       <Text style={styles.label}>PASSWORD</Text>
@@ -73,7 +61,7 @@ const LoginScreen = () => {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        placeholderTextColor="#000000"
+        placeholderTextColor={Colors.textSecondary} 
       />
       
       <TouchableOpacity onPress={handleForgotPassword}>
@@ -81,7 +69,11 @@ const LoginScreen = () => {
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading}>
-        {isLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.buttonText}>Sign In</Text>}
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.white} />
+        ) : (
+          <Text style={styles.buttonText}>Sign In</Text>
+        )}
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.button} onPress={handleSignUp}>
@@ -91,7 +83,6 @@ const LoginScreen = () => {
   );
 };
 
-// Styles are unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,

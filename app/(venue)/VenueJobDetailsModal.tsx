@@ -1,21 +1,34 @@
-
 import React from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { Feather } from '@expo/vector-icons';
-import { format, toDate } from 'date-fns';
+import { X } from 'lucide-react-native';
+import { format } from 'date-fns';
+import { Job } from '../../types';
 
-const DetailRow = ({ label, value }) => (
+// Type the props for the DetailRow component
+interface DetailRowProps {
+    label: string;
+    value: string;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
     <View style={styles.detailRow}>
         <Text style={styles.detailLabel}>{label}:</Text>
         <Text style={styles.detailValue}>{value}</Text>
     </View>
 );
 
-const VenueJobDetailsModal = ({ isVisible, onClose, job }) => {
-    if (!job) return null;
+// Type the props for the main modal component
+interface VenueJobDetailsModalProps {
+    isVisible: boolean;
+    onClose: () => void;
+    job: Job | null;
+}
 
-    const datePosted = job.datePosted ? toDate(new Date(job.datePosted)) : new Date();
+const VenueJobDetailsModal: React.FC<VenueJobDetailsModalProps> = ({ isVisible, onClose, job }) => {
+    if (!job) {
+        return null;
+    }
 
     return (
         <Modal
@@ -29,12 +42,12 @@ const VenueJobDetailsModal = ({ isVisible, onClose, job }) => {
                     <View style={styles.header}>
                         <Text style={styles.headerTitle}>{job.title} Details</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <Feather name="x" size={24} color={Colors.primary} />
+                            <X size={24} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
 
                     <ScrollView contentContainerStyle={styles.scrollContainer}>
-                        <DetailRow label="Date Posted" value={format(datePosted, 'eeee, dd MMMM yyyy')} />
+                        {job.datePosted && <DetailRow label="Date Posted" value={format(new Date(job.datePosted), 'eeee, dd MMMM yyyy')} />}
                         <DetailRow label="Job Type" value={job.type} />
                         <DetailRow label="Salary" value={job.salary} />
                         
@@ -42,15 +55,6 @@ const VenueJobDetailsModal = ({ isVisible, onClose, job }) => {
                             <View style={styles.section}>
                                 <Text style={styles.sectionTitle}>Job Description</Text>
                                 <Text style={styles.sectionContent}>{job.description}</Text>
-                            </View>
-                        )}
-
-                        {job.requirements && job.requirements.length > 0 && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Requirements</Text>
-                                {job.requirements.map((req, index) => (
-                                    <Text key={index} style={styles.requirementItem}>• {req}</Text>
-                                ))}
                             </View>
                         )}
                     </ScrollView>

@@ -1,32 +1,22 @@
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { firestore } from '../services/firebase';
+import firestore from '@react-native-firebase/firestore';
 import { useUserStore } from '../app/store/userStore';
+import { Conversation } from '../types';
 
-export interface ChatParticipant {
-  id: string;
-  name: string;
-  profilePictureUrl: string;
-}
-
-export interface Chat {
-  id: string;
-  participants: ChatParticipant[];
-  lastMessage: {
-    text: string;
-    timestamp: Date;
-    senderId: string;
-  } | null;
-  unreadCount: number;
+// Extends Conversation to include view-specific properties for the chat list
+export interface ChatListItem extends Conversation {
+  name: string; // The name of the other participant
+  profilePictureUrl?: string; // The avatar of the other participant
+  unreadCount: number; // Number of unread messages for the current user
 }
 
 export const useChatList = () => {
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [chats, setChats] = useState<ChatListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentUser = useUserStore(state => state.profile);
-  const currentUserId = currentUser?.id;
+  const currentUser = useUserStore(state => state.user);
+  const currentUserId = currentUser?.uid;
 
   useEffect(() => {
     if (!currentUserId) {
@@ -34,28 +24,28 @@ export const useChatList = () => {
       return;
     }
 
-    const q = query(
-      collection(firestore, 'chats'), 
-      where('participantIds', 'array-contains', currentUserId),
-      orderBy('lastMessage.timestamp', 'desc')
-    );
+    const q = firestore()
+      .collection('conversations')
+      .where('participants', 'array-contains', currentUserId)
+      .orderBy('lastMessageTimestamp', 'desc');
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const chatList: Chat[] = [];
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        const otherParticipant = data.participants.find(p => p.id !== currentUserId);
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
+      const chatList: ChatListItem[] = querySnapshot.docs.map(doc => {
+        const data = doc.data() as Conversation;
+        const otherParticipant = data.participantDetails.find(p => p.id !== currentUserId);
         
-        chatList.push({
+        // Determine unread status
+        const unreadCount = (data.readBy && !data.readBy.includes(currentUserId)) ? 1 : 0;
+
+        return {
+          ...data,
           id: doc.id,
-          participants: data.participants,
-          lastMessage: data.lastMessage ? { ...data.lastMessage, timestamp: data.lastMessage.timestamp.toDate() } : null,
-          unreadCount: data.unreadCounts?.[currentUserId] || 0,
-          // Add other necessary fields from your chat document
           name: otherParticipant?.name || 'Chat',
-          profilePictureUrl: otherParticipant?.profilePictureUrl || ''
-        });
+          profilePictureUrl: otherParticipant?.avatarUrl || '',
+          unreadCount: unreadCount,
+        };
       });
+
       setChats(chatList);
       setIsLoading(false);
     }, (err) => {
@@ -63,7 +53,7 @@ export const useChatList = () => {
       setError("Failed to load chats.");
       setIsLoading(false);
     });
-
+    
     return () => unsubscribe();
 
   }, [currentUserId]);

@@ -1,7 +1,7 @@
 
-import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Mail } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 
 const PendingScreen = () => {
@@ -10,7 +10,7 @@ const PendingScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.icon}>✉️</Text>
+        <Mail size={48} color={Colors.primary} style={styles.icon} />
         <Text style={styles.title}>Hold tight!</Text>
         <Text style={styles.description}>Thank you for registering with Shift Filla.</Text>
         <View style={styles.content}>
@@ -42,7 +42,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   icon: {
-    fontSize: 48,
     marginBottom: 16,
   },
   title: {
@@ -53,7 +52,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 18,
-    color: Colors.dark,
+    color: Colors.text,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -62,7 +61,7 @@ const styles = StyleSheet.create({
   },
   paragraph: {
     fontSize: 16,
-    color: Colors.dark,
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 8,
   },

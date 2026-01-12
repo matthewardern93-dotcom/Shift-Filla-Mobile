@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplate';
@@ -9,8 +9,8 @@ import { Fonts } from '../../constants/fonts';
 import { Shift } from '../../types';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format, isSameDay } from 'date-fns';
-import { useUserStore } from '../../store/userStore';
-import { useShiftStore } from '../../store/shiftStore';
+import { useUserStore } from '../store/userStore';
+import { useShiftStore } from '../store/shiftStore';
 
 // --- Mock data has been removed --- 
 
@@ -24,15 +24,13 @@ const WorkerRosterScreen = () => {
     const router = useRouter();
 
     // 2. Fetch shifts from Firestore when the screen is focused
-    useFocusEffect(
-        useCallback(() => {
-            if (user?.uid) {
-                fetchShiftsForWorker(user.uid);
-            }
-            // Cleanup the listener when the screen loses focus
-            return () => cleanup();
-        }, [user?.uid])
-    );
+    useFocusEffect(() => {
+        if (user?.uid) {
+            fetchShiftsForWorker(user.uid);
+        }
+        // Cleanup the listener when the screen loses focus
+        return () => cleanup();
+    });
 
     const handleShiftPress = (shift: Shift) => {
         router.push({
@@ -45,7 +43,7 @@ const WorkerRosterScreen = () => {
     const rosterShifts = shifts.filter(shift => shift.status === 'confirmed' || shift.status === 'completed');
 
     const getMarkedDates = () => {
-        const marked = rosterShifts.reduce((acc, shift) => {
+        const marked = rosterShifts.reduce((acc: { [key: string]: any }, shift) => {
             const date = format(new Date(shift.startTime), 'yyyy-MM-dd');
             acc[date] = { ...acc[date], marked: true, dotColor: Colors.primary };
             return acc;
