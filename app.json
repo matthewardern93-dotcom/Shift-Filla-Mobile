@@ -25,6 +25,22 @@
       "favicon": "./assets/Briefcase_550x550.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAuth",
+              "RNFBFirestore",
+              "RNFBFunctions",
+              "RNFBStorage"
+            ],
+            "useFrameworks": "static",
+            "ccacheEnabled": true
+          }
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

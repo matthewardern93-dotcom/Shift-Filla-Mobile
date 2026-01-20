@@ -1,25 +1,24 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
   addDoc,
+  collection,
+  doc,
+  FieldValue,
+  getDoc,
+  getDocs,
+  getFirestore,
+  query,
+  serverTimestamp,
   setDoc,
   Timestamp,
-  FieldValue
+  updateDoc,
+  where
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getMessaging } from 'firebase/messaging';
+import { getStorage } from 'firebase/storage';
 
 
 const firebaseConfig = {
@@ -37,28 +36,12 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
-const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+const messaging = null;
 
 export {
-  app,
+  addDoc, app,
   auth,
-  db,
-  storage,
-  functions,
-  messaging,
-  firebaseConfig,
   // Export Firestore/Functions features for use in services
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-  addDoc,
-  setDoc,
-  Timestamp,
-  FieldValue,
-  httpsCallable
+  collection, db, doc, FieldValue, firebaseConfig, functions, getDoc, getDocs, httpsCallable, messaging, query, serverTimestamp, setDoc, storage, Timestamp, updateDoc, where
 };
+
