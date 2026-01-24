@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1067395211015",
+    "project_id": "shiftflow-femet",
+    "storage_bucket": "shiftflow-femet.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067395211015:android:1a2d94905fbba5e0e0efa2",
+        "android_client_info": {
+          "package_name": "com.matthew.ardern93.shiftfillamobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1067395211015-j4v304vf4jkbc0vft7b5taa9im02jgsn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.matthew.ardern93.shiftfillamobile",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "1067395211015-egq5mkriv2vr20iqmvc1t9m4lio5v6le.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYQzCrN1U1TLozBXVvW_x4hRLinJHTR1I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1067395211015-egq5mkriv2vr20iqmvc1t9m4lio5v6le.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1067395211015-q8fb5o2sp9aqk61565be39p6t8o4mqjb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.matthew.ardern93.shiftfillamobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
