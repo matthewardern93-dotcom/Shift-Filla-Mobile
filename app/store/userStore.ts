@@ -1,12 +1,11 @@
-import { create } from 'zustand';
-import { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { auth } from '../../services/firebase';
-import { getUserProfile, updateFCMToken } from '../../services/users';
-import { UserProfile } from '../../types';
+import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
+import { create } from "zustand";
+import { getUserProfile, updateFCMToken } from "../../services/users";
+import { UserProfile } from "../../types";
 
 // 1. DEFINE THE STORE'S STATE
 interface UserState {
-  user: FirebaseAuthTypes.User | null; // Use the native User type
+  user: FirebaseAuthTypes.User | null;
   profile: UserProfile | null;
   isLoggedIn: boolean;
   isLoading: boolean;
@@ -37,7 +36,7 @@ export const useUserStore = create<UserState & UserActions>((set, get) => ({
   // --- AUTHENTICATION ACTIONS ---
   subscribeToAuthState: () => {
     set({ isLoading: true });
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth().onAuthStateChanged(async (user) => {
       if (user) {
         set({ user, isLoggedIn: true, error: null });
         await get().fetchUserProfile(user.uid);
@@ -56,11 +55,20 @@ export const useUserStore = create<UserState & UserActions>((set, get) => ({
   signIn: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      await auth.signInWithEmailAndPassword(email, password);
+      const res = await auth().signInWithEmailAndPassword(email, password);
+      set({ user: res.user, isLoggedIn: true, error: null });
+      await get().fetchUserProfile(res.user.uid);
+      const fcmToken = get().fcmToken;
+      if (fcmToken) {
+        await get().setFcmToken(fcmToken);
+      }
       set({ isLoading: false });
     } catch (error: unknown) {
       console.error("Sign-in error:", error);
-      set({ error: "Invalid email or password. Please try again.", isLoading: false });
+      set({
+        error: "Invalid email or password. Please try again.",
+        isLoading: false,
+      });
       throw new Error("Failed to sign in");
     }
   },
@@ -68,11 +76,14 @@ export const useUserStore = create<UserState & UserActions>((set, get) => ({
   signOut: async () => {
     set({ isLoading: true });
     try {
-      await auth.signOut();
+      await auth().signOut();
       get().clearState();
     } catch (error: unknown) {
       console.error("Sign-out error:", error);
-      const message = error instanceof Error ? error.message : "An unknown error occurred during sign-out.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred during sign-out.";
       set({ error: message });
     } finally {
       set({ isLoading: false });
@@ -84,13 +95,16 @@ export const useUserStore = create<UserState & UserActions>((set, get) => ({
     try {
       const profile = await getUserProfile(uid);
       if (!profile) {
-        throw new Error('User profile not found in Firestore.');
+        throw new Error("User profile not found in Firestore.");
       }
       set({ profile: profile as UserProfile, error: null });
     } catch (error: unknown) {
       console.error("Fetch Profile Error:", error);
-      set({ error: "Could not load user profile. Please try signing out and back in." });
-      await auth.signOut();
+      set({
+        error:
+          "Could not load user profile. Please try signing out and back in.",
+      });
+      await auth().signOut();
       get().clearState();
     }
   },
@@ -108,12 +122,13 @@ export const useUserStore = create<UserState & UserActions>((set, get) => ({
   },
 
   // --- UTILITY ACTIONS ---
-  clearState: () => set({
-    user: null,
-    profile: null,
-    isLoggedIn: false,
-    error: null,
-    isLoading: false,
-    fcmToken: null,
-  }),
+  clearState: () =>
+    set({
+      user: null,
+      profile: null,
+      isLoggedIn: false,
+      error: null,
+      isLoading: false,
+      fcmToken: null,
+    }),
 }));

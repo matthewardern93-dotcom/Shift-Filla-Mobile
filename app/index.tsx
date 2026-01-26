@@ -1,23 +1,28 @@
-import { Redirect } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
-import { useAuthStore } from './store/authStore';
+import { Redirect } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { useAuthStore } from "./store/authStore";
 
 const Index = () => {
   const { user, profile, isInitialized } = useAuthStore();
 
   if (!isInitialized) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />
       </View>
     );
   }
 
   if (user && profile) {
-    if (profile.userType === 'worker') {
+    const profileWithApproval = profile as any;
+    if (profileWithApproval.approved === false) {
+      return <Redirect href="/(auth)/pending" />;
+    }
+
+    if (profileWithApproval.userType === "worker") {
       return <Redirect href="/(worker)" />;
     }
-    if (profile.userType === 'venue') {
+    if (profileWithApproval.userType === "venue") {
       return <Redirect href="/(venue)" />;
     }
   }

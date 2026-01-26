@@ -33,9 +33,15 @@ const LoginScreen = () => {
 
   useEffect(() => {
     if (user && profile) {
-      if (profile.userType === "worker") {
+      const profileWithApproval = profile as any;
+      if (profileWithApproval.approved === false) {
+        router.replace("/(auth)/pending");
+        return;
+      }
+
+      if (profileWithApproval.userType === "worker") {
         router.replace("/(worker)");
-      } else if (profile.userType === "venue") {
+      } else if (profileWithApproval.userType === "venue") {
         router.replace("/(venue)");
       }
     }

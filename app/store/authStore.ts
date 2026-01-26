@@ -138,9 +138,15 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signOut: async () => {
     set({ isLoading: true, error: null });
 
+    // Immediately clear state to prevent race conditions
+    // This ensures that when navigation happens, the store is already cleared
+    // and redirect loops won't occur (e.g., when going from pending to login)
+    get().clearState();
+
     try {
       await auth().signOut();
-      // clearState will be called by the auth state listener
+      // The auth state listener will fire and confirm the signout,
+      // but state is already cleared so no redirect loops occur
     } catch (error: unknown) {
       console.error("Sign-out error:", error);
       const message =
