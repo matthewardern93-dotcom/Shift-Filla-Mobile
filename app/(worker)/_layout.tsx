@@ -1,11 +1,11 @@
 import { Redirect, Stack } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuthStore } from "../store/authStore";
 
 export default function WorkerLayout() {
-  const { user, profile, isLoading } = useAuth();
+  const { user, profile, isLoading, isInitialized } = useAuthStore();
 
-  if (isLoading) {
+  if (!isInitialized || isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import { db } from '../services/firebase';
-import { useUserStore } from '../app/store/userStore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { useAuthStore } from '../app/store/authStore';
 import { Message, Conversation } from '../types';
 
 // This extends the Conversation type to include properties needed for display
@@ -15,7 +14,7 @@ export const useChat = (chatId: string) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentUser = useUserStore(state => state.user);
+  const currentUser = useAuthStore(state => state.user);
 
   useEffect(() => {
     if (!chatId || !currentUser?.uid) {
@@ -25,7 +24,7 @@ export const useChat = (chatId: string) => {
 
     const currentUserId = currentUser.uid;
 
-    const chatDocRef = db.collection('conversations').doc(chatId);
+    const chatDocRef = firestore().collection('conversations').doc(chatId);
     const unsubscribeChat = chatDocRef.onSnapshot((docSnap) => {
       if (docSnap.exists) {
         const chatData = docSnap.data() as Omit<Conversation, 'id'>;
@@ -46,7 +45,7 @@ export const useChat = (chatId: string) => {
       setError("Failed to load chat details.");
     });
 
-    const messagesColRef = db.collection('conversations').doc(chatId).collection('messages');
+    const messagesColRef = firestore().collection('conversations').doc(chatId).collection('messages');
     const q = messagesColRef.orderBy('timestamp', 'desc');
 
     const unsubscribeMessages = q.onSnapshot((querySnapshot) => {

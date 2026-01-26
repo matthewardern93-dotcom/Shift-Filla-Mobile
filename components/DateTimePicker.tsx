@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Colors } from '../constants/colors';
 import { format } from 'date-fns';
 import { Pencil } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Colors } from '../constants/colors';
 
 interface DateTimePickerProps {
   value: Date | undefined;
@@ -131,6 +131,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 12,
   },
   inputText: {
     fontSize: 16,

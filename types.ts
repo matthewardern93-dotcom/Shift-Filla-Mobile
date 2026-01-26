@@ -1,9 +1,8 @@
 // src/lib/types.ts
 import type { LucideIcon } from "lucide-react";
-// Correctly handle different Timestamp types between client and admin SDKs
-import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
-import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
-type Timestamp = ClientTimestamp | AdminTimestamp;
+// Use React Native Firebase Firestore Timestamp
+import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+type Timestamp = FirebaseFirestoreTypes.Timestamp;
 
 
 // --- DATA PAYLOADS FOR FORMS ---
@@ -89,6 +88,9 @@ export interface WorkerProfile {
     resumeUrl?: string;
     stripeAccountStatus?: 'pending' | 'active' | 'action_required' | 'restricted';
 }
+
+// Union type for user profiles
+export type UserProfile = WorkerProfile | VenueProfile;
 
 
 // --- Data & Feature Types ---

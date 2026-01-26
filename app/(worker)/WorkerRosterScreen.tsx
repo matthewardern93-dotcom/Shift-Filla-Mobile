@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import WorkerScreenTemplate from '../../components/templates/WorkerScreenTemplate';
@@ -9,14 +9,14 @@ import { Fonts } from '../../constants/fonts';
 import { Shift } from '../../types';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format, isSameDay } from 'date-fns';
-import { useUserStore } from '../store/userStore';
+import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
 
 // --- Mock data has been removed --- 
 
 const WorkerRosterScreen = () => {
     // 1. Get data from our global stores
-    const { user } = useUserStore();
+    const { user } = useAuthStore();
     const { shifts, isLoading, fetchShiftsForWorker, cleanup } = useShiftStore();
 
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
@@ -24,13 +24,15 @@ const WorkerRosterScreen = () => {
     const router = useRouter();
 
     // 2. Fetch shifts from Firestore when the screen is focused
-    useFocusEffect(() => {
-        if (user?.uid) {
-            fetchShiftsForWorker(user.uid);
-        }
-        // Cleanup the listener when the screen loses focus
-        return () => cleanup();
-    });
+    useFocusEffect(
+        useCallback(() => {
+            if (user?.uid) {
+                fetchShiftsForWorker(user.uid);
+            }
+            // Cleanup the listener when the screen loses focus
+            return () => cleanup();
+        }, [user?.uid, fetchShiftsForWorker, cleanup])
+    );
 
     const handleShiftPress = (shift: Shift) => {
         router.push({

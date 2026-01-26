@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { ScrollView, ActivityIndicator, Text, View } from 'react-native';
 import WorkerScreenTemplate from '../../../components/templates/WorkerScreenTemplate';
 import ReferralTracker from '../../../components/ReferralTracker';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuthStore } from '../../store/authStore';
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { Colors } from '../../../constants/colors';
 
@@ -14,7 +14,7 @@ interface ReferredVenue {
 }
 
 const ReferAndWinScreen = () => {
-  const { user } = useAuth(); 
+  const { user } = useAuthStore(); 
   const [referredVenues, setReferredVenues] = useState<ReferredVenue[]>([]);
   const [loading, setLoading] = useState(true);
 

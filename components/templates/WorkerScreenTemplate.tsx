@@ -6,7 +6,7 @@ import { ChevronDown, Bell, Mail, User, Home, CalendarDays } from 'lucide-react-
 import { Colors } from '../../constants/colors';
 import WorkerSettingsModal from '../WorkerSettingsModal';
 import { useChatStore } from '../../app/store/chatStore';
-import { useUserStore } from '../../app/store/userStore';
+import { useAuthStore } from '../../app/store/authStore';
 
 const WorkerScreenTemplate = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
@@ -17,7 +17,7 @@ const WorkerScreenTemplate = ({ children }: { children: React.ReactNode }) => {
   const isChatScreen = pathname.startsWith('/(worker)/chat/');
 
   // --- Chat Store Integration ---
-  const { user } = useUserStore(); // Get the logged-in user
+  const { user } = useAuthStore(); // Get the logged-in user
   const { hasUnreadMessages, subscribeToConversations, clearUnreadState } = useChatStore(); // Get state and actions
   const flashAnim = useRef(new Animated.Value(1));
   const [flashOpacity, setFlashOpacity] = useState(1);

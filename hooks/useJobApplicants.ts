@@ -1,7 +1,6 @@
-
-import { useState, useEffect } from 'react';
-import firestore from '@react-native-firebase/firestore';
-import { Application, PermanentJob, WorkerProfile } from '../types';
+import firestore from "@react-native-firebase/firestore";
+import { useEffect, useState } from "react";
+import { Application, PermanentJob, WorkerProfile } from "../types";
 
 // Represents a single application joined with the full profile of the applicant
 export type ApplicantWithProfile = Application & { profile: WorkerProfile };
@@ -23,57 +22,77 @@ export const useJobApplicants = (jobId: string) => {
     const unsubscribes: (() => void)[] = [];
 
     // 1. Fetch the job details
-    const jobRef = firestore().collection('permanentJobs').doc(jobId);
-    const unsubscribeJob = jobRef.onSnapshot((docSnap) => {
-      if (docSnap.exists) {
-        setJob({ id: docSnap.id, ...docSnap.data() } as PermanentJob);
-      } else {
-        setError('Job not found.');
-      }
-    }, err => {
+    const jobRef = firestore().collection("permanentJobs").doc(jobId);
+    const unsubscribeJob = jobRef.onSnapshot(
+      (docSnap) => {
+        if (docSnap.exists) {
+          setJob({ id: docSnap.id, ...docSnap.data() } as PermanentJob);
+        } else {
+          setError("Job not found.");
+        }
+      },
+      (err) => {
         console.error("Error fetching job: ", err);
-        setError('Failed to load job details.');
-    });
+        setError("Failed to load job details.");
+      },
+    );
     unsubscribes.push(unsubscribeJob);
 
     // 2. Fetch applicants (applications) for the job
-    const applicantsRef = firestore().collection('permanentJobs').doc(jobId).collection('applications');
-    const unsubscribeApplicants = applicantsRef.onSnapshot(async (snapshot) => {
+    const applicantsRef = firestore()
+      .collection("permanentJobs")
+      .doc(jobId)
+      .collection("applications");
+    const unsubscribeApplicants = applicantsRef.onSnapshot(
+      async (snapshot) => {
         try {
-            const applicantsData = await Promise.all(snapshot.docs.map(async (appDoc) => {
-                const application = { id: appDoc.id, ...appDoc.data() } as Application;
-                
-                const workerRef = firestore().collection('workerProfiles').doc(application.workerId);
-                const workerSnap = await workerRef.get();
+          const applicantsData = await Promise.all(
+            snapshot.docs.map(async (appDoc) => {
+              const application = {
+                id: appDoc.id,
+                ...appDoc.data(),
+              } as Application;
 
-                if (workerSnap.exists) {
-                    return { 
-                        ...application, 
-                        profile: { id: workerSnap.id, ...workerSnap.data() } as WorkerProfile 
-                    };
-                }
-                return null; 
-            }));
+              const workerRef = firestore()
+                .collection("WorkerProfiles")
+                .doc(application.workerId);
+              const workerSnap = await workerRef.get();
 
-            setApplicants(applicantsData.filter(Boolean) as ApplicantWithProfile[]);
+              if (workerSnap.exists) {
+                return {
+                  ...application,
+                  profile: {
+                    id: workerSnap.id,
+                    ...workerSnap.data(),
+                  } as WorkerProfile,
+                };
+              }
+              return null;
+            }),
+          );
+
+          setApplicants(
+            applicantsData.filter(Boolean) as ApplicantWithProfile[],
+          );
         } catch (err) {
-            console.error("Error fetching applicants' profiles: ", err);
-            if (!error) {
-                setError("Failed to load some applicant details.");
-            }
+          console.error("Error fetching applicants' profiles: ", err);
+          if (!error) {
+            setError("Failed to load some applicant details.");
+          }
         } finally {
-            setIsLoading(false);
+          setIsLoading(false);
         }
-    }, err => {
+      },
+      (err) => {
         console.error("Error fetching applications: ", err);
-        setError('Failed to load applicants.');
+        setError("Failed to load applicants.");
         setIsLoading(false);
-    });
+      },
+    );
     unsubscribes.push(unsubscribeApplicants);
 
     // Cleanup function to detach listeners on component unmount
-    return () => unsubscribes.forEach(unsub => unsub());
-
+    return () => unsubscribes.forEach((unsub) => unsub());
   }, [jobId]);
 
   return { job, applicants, isLoading, error };

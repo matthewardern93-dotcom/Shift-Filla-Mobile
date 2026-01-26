@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import firestore from '@react-native-firebase/firestore';
-import { useUserStore } from '../app/store/userStore';
+import { useAuthStore } from '../app/store/authStore';
 import { Conversation } from '../types';
 
 // Extends Conversation to include view-specific properties for the chat list
@@ -15,7 +15,7 @@ export const useChatList = () => {
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentUser = useUserStore(state => state.user);
+  const currentUser = useAuthStore(state => state.user);
   const currentUserId = currentUser?.uid;
 
   useEffect(() => {

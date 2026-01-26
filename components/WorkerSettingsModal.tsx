@@ -2,7 +2,7 @@ import { Calendar, CreditCard, Gift, LogOut, Shield } from 'lucide-react-native'
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore } from '../app/store/authStore';
 import { Colors } from '../constants/colors';
 
 interface WorkerSettingsModalProps {
@@ -12,7 +12,7 @@ interface WorkerSettingsModalProps {
 
 const WorkerSettingsModal: React.FC<WorkerSettingsModalProps> = ({ visible, onClose }) => {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut } = useAuthStore();
 
   const handleNavigate = (path: any) => {
     onClose();

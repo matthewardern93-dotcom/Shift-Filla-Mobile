@@ -8,7 +8,7 @@ import WorkerScreenTemplate from '../../../components/templates/WorkerScreenTemp
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { format } from 'date-fns';
 import { useChat } from '../../../hooks/useChat';
-import { useUserStore } from '../../../app/store/userStore';
+import { useAuthStore } from '../../store/authStore';
 import functions from '@react-native-firebase/functions';
 
 const MessageItem = ({ item, currentUserId }: { item: Message, currentUserId: string }) => {
@@ -52,7 +52,7 @@ const ChatScreen = () => {
     const { chat, messages, isLoading, error } = useChat(chatId as string);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
-    const currentUserId = useUserStore(state => state.user?.uid);
+    const currentUserId = useAuthStore(state => state.user?.uid);
 
     const handleSend = async () => {
         if (newMessage.trim() === '' || !chatId || isSending) return;
