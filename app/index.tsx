@@ -1,11 +1,11 @@
 import { Redirect } from 'expo-router';
-import { useAuth } from '../hooks/useAuth';
 import { ActivityIndicator, View } from 'react-native';
+import { useAuthStore } from './store/authStore';
 
 const Index = () => {
-  const { user, profile, isLoading } = useAuth();
+  const { user, profile, isInitialized } = useAuthStore();
 
-  if (isLoading) {
+  if (!isInitialized) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />

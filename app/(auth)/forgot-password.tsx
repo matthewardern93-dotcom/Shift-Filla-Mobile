@@ -46,7 +46,7 @@ const ForgotPasswordScreen = () => {
                 <Text style={styles.message}>
                     A password reset link has been sent to <Text style={{fontWeight: 'bold'}}>{email}</Text>. Please follow the instructions in the email to reset your password.
                 </Text>
-                <TouchableOpacity style={styles.button} onPress={() => router.replace('/login')}>
+                <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
                     <Text style={styles.buttonText}>Return to Login</Text>
                 </TouchableOpacity>
             </View>
